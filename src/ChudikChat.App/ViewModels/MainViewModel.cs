@@ -104,6 +104,9 @@ public partial class MainViewModel : ObservableObject
 
         if (SelectedPeer != peer)
             peer.UnreadCount++;
+
+        // Сюда попадают только входящие: свои сообщения добавляются в SendAsync.
+        NotificationSound.Play();
     }
 
     private void ApplyTransfer(TransferProgress progress)
