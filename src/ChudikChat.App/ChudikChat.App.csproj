@@ -43,6 +43,32 @@
 		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.19041.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
+	<!--
+		Упаковка под Android.
+
+		Оба свойства стоят здесь, а не флагами -p: в командной строке, и это не
+		стилистика: -p: задаёт ГЛОБАЛЬНОЕ свойство, оно применяется ко всем целевым
+		платформам и ко всем проектам. RuntimeIdentifiers=android-arm64 добрался бы
+		до ChudikChat.Core с целью net10.0 и сломал восстановление — ровно та
+		ловушка, что описана в build/publish-windows.ps1.
+	-->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+		<!--
+			Только arm64. Умолчание SDK — android-arm64;android-x64, но x86_64 нужен
+			единственно эмулятору, а в эмуляторе Чудик всё равно никого не находит:
+			многоадресная рассылка туда не доходит. Половина размера пакета впустую.
+		-->
+		<RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+
+		<!--
+			Множественное число обязательно. В конфигурации Release умолчание —
+			AndroidPackageFormats=aab;apk, и из него AndroidPackageFormat становится
+			aab раньше, чем сработало бы присваивание в единственном числе. Bundle
+			нужен Google Play, а Чудик ставится файлом: это чистая трата времени сборки.
+		-->
+		<AndroidPackageFormats>apk</AndroidPackageFormats>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#2F6FEB" />
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#2F6FEB" BaseSize="128,128" />
