@@ -69,6 +69,30 @@
 		<AndroidPackageFormats>apk</AndroidPackageFormats>
 	</PropertyGroup>
 
+	<!--
+		Упаковка под Mac Catalyst. Здесь, а не флагом -p:, по той же причине,
+		что и у Android: RuntimeIdentifier из командной строки — глобальное
+		свойство, и оно добралось бы до ChudikChat.Core.
+	-->
+	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">
+		<!--
+			Только Apple Silicon. Умолчание Release — универсальная сборка
+			maccatalyst-x64;maccatalyst-arm64, то есть вдвое больше ради машин
+			на Intel, которых у нас нет. Заодно это приводит сборку в согласие
+			с UIRequiredDeviceCapabilities в Platforms/MacCatalyst/Info.plist,
+			где arm64 уже указан обязательным.
+		-->
+		<RuntimeIdentifier>maccatalyst-arm64</RuntimeIdentifier>
+
+		<!--
+			.app, а не .pkg. Для десктопных целей умолчание — CreatePackage=true,
+			то есть установщик, но без сертификата Installer он всё равно
+			неподписанный, а Gatekeeper блокирует его ровно так же. Нам нужен
+			бандл, который уедет в .dmg.
+		-->
+		<CreatePackage>false</CreatePackage>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#2F6FEB" />
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#2F6FEB" BaseSize="128,128" />

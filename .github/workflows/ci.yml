@@ -20,9 +20,9 @@ defaults:
   run:
     shell: pwsh
 
-# Цепочка: тесты → версия → сборки под Windows и Android параллельно → релиз.
+# Цепочка: тесты → версия → три сборки параллельно → релиз.
 # Сборки не создают релиз сами, а передают готовые файлы артефактами прогона:
-# иначе два задания гонялись бы за один и тот же тег.
+# иначе задания гонялись бы за один и тот же тег.
 jobs:
   tests:
     name: Тесты
@@ -158,7 +158,8 @@ jobs:
 
       # На Linux у проекта остаётся единственная цель net10.0-android — так
       # устроены условия в ChudikChat.App.csproj. Поэтому здесь ставится только
-      # воркло́д android, без maccatalyst, за который платит Windows-задание.
+      # воркло́д android, без maccatalyst, за который платят задания
+      # на Windows и macOS.
       #
       # Android SDK и JDK берутся готовыми из образа runner'а: там есть платформы
       # до android-36 и build-tools 36.0.0, то есть всё, что просит воркло́д.
@@ -188,9 +189,64 @@ jobs:
           compression-level: 0
           retention-days: 1
 
+  macos:
+    name: Образ macOS
+    needs: version
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # На macOS у проекта две цели: условие в csproj отсекает только windows,
+      # поэтому остаются android и maccatalyst и ставятся оба воркло́да.
+      # Лишнего android здесь не избежать — восстановление идёт по всем целям.
+      - name: Воркло́ды MAUI
+        run: dotnet workload restore src/ChudikChat.App/ChudikChat.App.csproj
+
+      # Версия Xcode — жёсткое требование, а не пожелание: при расхождении
+      # major.minor с _RecommendedXcodeVersion воркло́да сборка падает с E0191,
+      # и это именно ошибка. Сейчас воркло́д просит 26.6, и ровно столько стоит
+      # на runner'е по умолчанию — но умолчание образа за год уже менялось
+      # трижды, поэтому закрепляем явно. Обновится воркло́д — поменять и здесь.
+      #
+      # DEVELOPER_DIR, а не xcode-select: тот требует sudo и меняет состояние
+      # машины, а переменная действует ровно на этот шаг. Если названной версии
+      # в образе не окажется, откатываемся на умолчание: тогда либо повезёт,
+      # либо E0191 назовёт обе версии и чинить будет по чему.
+      - name: Сборка образа
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+        run: |
+          if (-not (Test-Path $env:DEVELOPER_DIR)) {
+            Write-Host "::warning::нет $env:DEVELOPER_DIR, берём Xcode по умолчанию"
+            Remove-Item Env:DEVELOPER_DIR
+          }
+
+          & ./build/publish-maccatalyst.ps1 `
+            -Version '${{ needs.version.outputs.version }}' `
+            -VersionCode ${{ github.run_number }}
+
+      - name: Выгрузить образ
+        uses: actions/upload-artifact@v7
+        with:
+          name: dmg
+          path: artifacts/*.dmg
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
   release:
     name: Релиз
-    needs: [version, windows, android]
+    needs: [version, windows, android, macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -199,7 +255,7 @@ jobs:
 
       # v8, хотя у upload-artifact последний мажор седьмой: это разные действия
       # со своей нумерацией. Общее у них требование к Node 24.
-      # merge-multiple складывает оба артефакта в одну папку, без подпапок
+      # merge-multiple складывает все артефакты в одну папку, без подпапок
       # по имени артефакта.
       - uses: actions/download-artifact@v8
         with:
@@ -213,14 +269,15 @@ jobs:
           $v = '${{ needs.version.outputs.version }}'
           $msi = "artifacts/Chudik-$v-x64.msi"
           $apk = "artifacts/Chudik-$v-arm64.apk"
+          $dmg = "artifacts/Chudik-$v-arm64.dmg"
 
-          foreach ($file in @($msi, $apk)) {
+          foreach ($file in @($msi, $apk, $dmg)) {
             if (-not (Test-Path $file)) { throw "нет файла $file" }
           }
 
           $notes = @"
-          Чудик $v — сборки для Windows и Android. Устройства должны быть
-          в одной домашней сети.
+          Чудик $v — сборки для Windows, Android и macOS. Устройства должны
+          быть в одной домашней сети.
 
           ## Windows, x64
 
@@ -246,10 +303,25 @@ jobs:
           новый пакет чужим приложением. Придётся удалить старую версию, а вместе
           с ней пропадут принятые файлы: на Android они лежат в папке приложения.
 
+          ## macOS, Apple Silicon
+
+          Скачать ``Chudik-$v-arm64.dmg``, открыть и перетащить «Чудик»
+          в «Программы». Нужен Mac на Apple Silicon и macOS 12 или новее:
+          сборки под Intel нет.
+
+          Приложение подписано ad-hoc и не нотаризовано, поэтому при первом
+          запуске macOS скажет, что не может проверить разработчика. Разрешить
+          нужно один раз: Системные настройки → «Конфиденциальность
+          и безопасность» → «Всё равно открыть». Control-клик по значку,
+          которым это обходили раньше, в macOS 15 уже не помогает.
+
+          На macOS 15 и новее система отдельно спросит доступ к локальной
+          сети — без него Чудик никого не найдёт.
+
           Собрано из $env:GITHUB_SHA
           "@
 
-          gh release create "v$v" $msi $apk --title "Чудик $v" --notes $notes
+          gh release create "v$v" $msi $apk $dmg --title "Чудик $v" --notes $notes
           if ($LASTEXITCODE -ne 0) { throw "не удалось создать релиз (код $LASTEXITCODE)" }
 
       # Каждый коммит в main — релиз на сотню мегабайт. Без чистки страница
