@@ -191,6 +191,17 @@ jobs:
 
   macos:
     name: Образ macOS
+    # ВРЕМЕННО ОТКЛЮЧЕНО. Задание доходит до самого образа — бандл собирается,
+    # архитектура arm64, подпись ad-hoc проходит проверку — и падает на hdiutil.
+    # Исправление лежит в build/publish-maccatalyst.ps1, но проверить его негде,
+    # кроме как здесь же, а держать из-за этого весь конвейер красным и вовсе
+    # без релизов дороже, чем отложить macOS.
+    #
+    # Чтобы вернуть, нужны три правки: убрать строку if ниже, вернуть macos
+    # в needs у задания «Релиз» и вернуть туда же всё про $dmg — проверку файла,
+    # аргумент gh release create и раздел «## macOS, Apple Silicon» в описании
+    # релиза. Текст раздела лежит в истории этого файла.
+    if: false
     needs: version
     runs-on: macos-latest
     steps:
@@ -246,7 +257,8 @@ jobs:
 
   release:
     name: Релиз
-    needs: [version, windows, android, macos]
+    # macos временно не в списке — см. комментарий у задания «Образ macOS».
+    needs: [version, windows, android]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -269,15 +281,14 @@ jobs:
           $v = '${{ needs.version.outputs.version }}'
           $msi = "artifacts/Chudik-$v-x64.msi"
           $apk = "artifacts/Chudik-$v-arm64.apk"
-          $dmg = "artifacts/Chudik-$v-arm64.dmg"
 
-          foreach ($file in @($msi, $apk, $dmg)) {
+          foreach ($file in @($msi, $apk)) {
             if (-not (Test-Path $file)) { throw "нет файла $file" }
           }
 
           $notes = @"
-          Чудик $v — сборки для Windows, Android и macOS. Устройства должны
-          быть в одной домашней сети.
+          Чудик $v — сборки для Windows и Android. Устройства должны быть
+          в одной домашней сети.
 
           ## Windows, x64
 
@@ -303,25 +314,10 @@ jobs:
           новый пакет чужим приложением. Придётся удалить старую версию, а вместе
           с ней пропадут принятые файлы: на Android они лежат в папке приложения.
 
-          ## macOS, Apple Silicon
-
-          Скачать ``Chudik-$v-arm64.dmg``, открыть и перетащить «Чудик»
-          в «Программы». Нужен Mac на Apple Silicon и macOS 12 или новее:
-          сборки под Intel нет.
-
-          Приложение подписано ad-hoc и не нотаризовано, поэтому при первом
-          запуске macOS скажет, что не может проверить разработчика. Разрешить
-          нужно один раз: Системные настройки → «Конфиденциальность
-          и безопасность» → «Всё равно открыть». Control-клик по значку,
-          которым это обходили раньше, в macOS 15 уже не помогает.
-
-          На macOS 15 и новее система отдельно спросит доступ к локальной
-          сети — без него Чудик никого не найдёт.
-
           Собрано из $env:GITHUB_SHA
           "@
 
-          gh release create "v$v" $msi $apk $dmg --title "Чудик $v" --notes $notes
+          gh release create "v$v" $msi $apk --title "Чудик $v" --notes $notes
           if ($LASTEXITCODE -ne 0) { throw "не удалось создать релиз (код $LASTEXITCODE)" }
 
       # Каждый коммит в main — релиз на сотню мегабайт. Без чистки страница

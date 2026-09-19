@@ -24,7 +24,7 @@
 		<ApplicationTitle>Чудик</ApplicationTitle>
 		<ApplicationId>com.chudik.chat</ApplicationId>
 
-		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+		<ApplicationDisplayVersion>1.1</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
 		<!--
