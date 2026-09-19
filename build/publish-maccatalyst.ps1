@@ -148,7 +148,27 @@ try {
 
     if (Test-Path $dmg) { Remove-Item $dmg -Force }
 
-    hdiutil create -volname 'Чудик' -srcfolder $staging -ov -format UDZO $dmg
+    # Размер образа задаётся явно, и это не перестраховка. Без -size hdiutil
+    # считает его сам по содержимому и промахивается: на дереве из множества
+    # мелких файлов запаса не хватает на служебные структуры файловой системы,
+    # и создание падает с «No space left on device» — ровно это и случилось
+    # на первом же прогоне в CI. Ошибка при этом указывает путь внутри
+    # смонтированного тома, а не на диске, и выглядит как нехватка места
+    # на машине, каковой не является.
+    #
+    # Полуторный запас плюс 64 МБ. На вес готового файла это не влияет:
+    # UDZO сжимает только занятые блоки, пустые не попадают в образ вовсе.
+    $contentBytes = (Get-ChildItem $app.FullName -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum
+
+    $sizeMb = [Math]::Max(128, [int][Math]::Ceiling($contentBytes / 1MB * 1.5) + 64)
+    Write-Host ("  содержимое {0:N0} МБ, образ создаётся на {1:N0} МБ" -f ($contentBytes / 1MB), $sizeMb)
+
+    # Свободное место на самой машине — на случай, если однажды кончится и оно:
+    # по одной этой строке в журнале две причины различаются сразу.
+    Write-Host "  свободно на диске: $((df -h $artifacts | Select-Object -Last 1) -replace '\s+', ' ')"
+
+    hdiutil create -size "${sizeMb}m" -volname 'Чудик' -srcfolder $staging -ov -format UDZO $dmg
     if ($LASTEXITCODE -ne 0) { throw "hdiutil не справился (код $LASTEXITCODE)" }
 } finally {
     if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
