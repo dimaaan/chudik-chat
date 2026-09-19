@@ -12,6 +12,25 @@
       <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
 
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+
+      <!--
+        Кодовая страница процесса — UTF-8. Это половина лечения от «?????»
+        вместо «Чудик» на панели задач и в Alt+Tab; вторая половина —
+        Services/WindowTitle.cs, где разобран и весь механизм целиком.
+
+        Коротко: окно WinUI 3 — ANSI-окно, IsWindowUnicode для него возвращает
+        false, поэтому заголовок Windows хранит в кодовой странице процесса,
+        а не в UTF-16. На английской Windows это 1252, кириллицы в ней нет,
+        и каждая буква становится вопросительным знаком. Само приложение
+        ни при чём: строка правильная и в исходниках, и в собранной сборке.
+
+        Одной этой строки не хватает — с ней заголовок становится «Чуд», —
+        но без неё не помогает и всё остальное: в 1252 кириллицу не записать.
+
+        Требует Windows 10 1903, а минимум у приложения 10.0.19041, так что
+        поддержка есть везде, где оно вообще запускается.
+      -->
+      <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
     </windowsSettings>
   </application>
 </assembly>

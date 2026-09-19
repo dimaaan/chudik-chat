@@ -19,6 +19,10 @@ public static class MauiProgram
 				fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
 			});
 
+		// Отображения правятся до Build(): к этому моменту ни одного окна ещё нет,
+		// и обработчик успеет встать раньше, чем заголовок поставят в первый раз.
+		WindowTitle.FixEncoding();
+
 		// Движок один на всё приложение и не зависит от жизненного цикла страниц.
 		builder.Services.AddSingleton<ChatSession>();
 		builder.Services.AddSingleton<MainViewModel>();
