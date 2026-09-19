@@ -42,6 +42,23 @@ public static class InboundExchange
             return;
         }
 
+        // Соединение с самим собой. Встречается не только при отладке: человек
+        // может ввести собственный адрес в «добавить по адресу».
+        //
+        // Отказ стоит здесь, а не на разборе текстового кадра, и это важно.
+        // Проверка ниже по течению закрыла бы только переписку, а предложение
+        // передачи пошло бы дальше — и приёмник послушно разложил бы файлы
+        // самому себе в папку загрузок. Здесь одним условием закрыты оба пути.
+        //
+        // Отвечаем отказом, а не молча закрываем соединение: OutboundExchange
+        // разворачивает ErrorFrame в текст причины, и человек видит, что он
+        // указал свой же адрес, вместо невнятного обрыва.
+        if (identify.PeerId == localIdentity.PeerId)
+        {
+            await TryWriteErrorAsync(stream, "это соединение с самим собой", ct).ConfigureAwait(false);
+            return;
+        }
+
         var displayName = DeviceNames.Sanitize(identify.DisplayName);
         sink.OnIdentified(identify.PeerId, displayName, remote, identify.ListenPort);
 

@@ -103,17 +103,26 @@ public class ChatEngineTests
     }
 
     [Fact]
-    public async Task Engine_ignores_a_message_addressed_to_itself()
+    public async Task Engine_refuses_a_connection_to_itself()
     {
         await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
-        await alice.StartAsync();
 
+        // Подписка до StartAsync: движок рассылает HELLO прямо из него, и всё,
+        // что на это ответит, должно попасть в обработчики, а не проскочить мимо
+        // и оставить тест зелёным по случайности.
         var appeared = false;
         alice.PeerAppeared += _ => appeared = true;
 
-        await alice.SendTextToAsync(Loopback(alice.ListenPort), "сам себе");
+        ChatMessage? received = null;
+        alice.MessageReceived += message => received = message;
+
+        await alice.StartAsync();
+
+        var sent = await alice.SendTextToAsync(Loopback(alice.ListenPort), "сам себе");
 
         Assert.False(appeared, "собственный идентификатор не должен попадать в список пиров");
+        Assert.Null(received);
+        Assert.Equal(MessageState.Failed, sent.State);
     }
 
     private static IPEndPoint Loopback(int port) => new(IPAddress.Loopback, port);
