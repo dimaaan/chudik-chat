@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Установщик Чудика под Windows x64.
+
+  Собирается скриптом build/publish-windows.ps1 — он подставляет три переменные:
+  PublishDir, IconPath и ProductVersion.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:fw="http://wixtoolset.org/schemas/v4/wxs/firewall">
+
+  <Package
+      Name="Чудик"
+      Manufacturer="Dmitry Anshilevich"
+      Version="$(var.ProductVersion)"
+      Scope="perMachine"
+      Compressed="yes"
+      Language="1049"
+      Codepage="1251"
+      UpgradeCode="7c1f5a94-0b38-4d62-9e77-2a6c4f8b1d05">
+
+    <!--
+      UpgradeCode выше менять нельзя никогда. Он — единственное, по чему Windows
+      Installer узнаёт, что новая версия заменяет старую. Сменить его значит
+      получить на машине две параллельно установленные копии Чудика.
+    -->
+    <MajorUpgrade DowngradeErrorMessage="На этом компьютере уже установлена более новая версия Чудика." />
+
+    <!--
+      Codepage здесь обязателен и отдельно от Codepage у Package: поток сводной
+      информации MSI хранится в своей кодовой странице, по умолчанию 1252.
+      Без этой строки кириллица в описании молча пропадает — пакет собирается
+      без единого предупреждения, а в свойствах файла видно «— p2p-».
+    -->
+    <SummaryInformation Codepage="1251"
+                        Description="Чудик — p2p-чат для домашней сети" />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="ChudikIcon" SourceFile="$(var.IconPath)" />
+    <Property Id="ARPPRODUCTICON" Value="ChudikIcon" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/dimaaan/chudik-chat" />
+
+    <!--
+      Папка латиницей, а не «Чудик»: имя видно только в проводнике, зато путь
+      не зависит от кодовой страницы системы.
+    -->
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Chudik" />
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Чудик" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="FirewallRules" />
+    </Feature>
+
+    <!-- Больше шестисот файлов: только автосбор, руками такое не перечисляют. -->
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Files Include="$(var.PublishDir)\**" />
+    </ComponentGroup>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut" Guid="3e8d7b21-96c4-4a0f-b5d3-81e2c7a45f9b">
+        <Shortcut Id="ChudikShortcut"
+                  Name="Чудик"
+                  Description="P2P-чат для домашней сети"
+                  Target="[INSTALLFOLDER]ChudikChat.App.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="ChudikIcon" />
+        <RegistryValue Root="HKLM" Key="Software\Chudik\Chat" Name="Shortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <!--
+      Правила брандмауэра — НА ПРОГРАММУ, а не на порт.
+
+      TCP-порт слушателя эфемерный: он выбирается при старте (Bind на порт 0
+      в TcpListenerService) и уезжает в UDP-объявлении. Правило «разрешить
+      входящие на порт N» для TCP не сработает никогда — номер каждый раз новый.
+
+      Profile=all, а не только private: если сеть на машине помечена
+      «Общедоступная», правило для private не применится, и Чудик замолчит
+      без единого сообщения об ошибке — худший вид поломки.
+    -->
+    <Component Id="FirewallRules" Directory="INSTALLFOLDER"
+               Guid="b4a06f13-2d57-4e88-8c91-7f3b5e2a6d40">
+      <RegistryValue Root="HKLM" Key="Software\Chudik\Chat" Name="Firewall"
+                     Type="integer" Value="1" KeyPath="yes" />
+
+      <fw:FirewallException Id="ChudikDiscovery"
+                            Name="Чудик — обнаружение"
+                            Description="Приём объявлений о присутствии по UDP в локальной подсети"
+                            Program="[INSTALLFOLDER]ChudikChat.App.exe"
+                            Protocol="udp"
+                            Scope="localSubnet"
+                            Profile="all" />
+
+      <fw:FirewallException Id="ChudikExchange"
+                            Name="Чудик — обмен"
+                            Description="Входящие соединения для сообщений и передачи файлов"
+                            Program="[INSTALLFOLDER]ChudikChat.App.exe"
+                            Protocol="tcp"
+                            Scope="localSubnet"
+                            Profile="all" />
+    </Component>
+
+  </Package>
+</Wix>
