@@ -1,5 +1,7 @@
 # Чудик
 
+[![CI](https://github.com/dimaaan/chudik-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/dimaaan/chudik-chat/actions/workflows/ci.yml)
+
 P2P-чат для домашней сети. Без сервера, без регистрации, без истории.
 
 Открыли на двух устройствах в одной wifi — увидели друг друга, переписываетесь,
@@ -19,13 +21,21 @@ dotnet build src/ChudikChat.App -f net10.0-android -t:Run
 dotnet build src/ChudikChat.App -f net10.0-maccatalyst
 
 # Тесты
-dotnet test ChudikChat.slnx
+dotnet test tests/ChudikChat.Core.Tests/ChudikChat.Core.Tests.csproj
+
+# То же, что гоняет CI: без трёх тестов, которым нужны multicast и UDP 45678.
+# Локально их прогонять обязательно — автоматика обнаружение не покрывает.
+dotnet test tests/ChudikChat.Core.Tests/ChudikChat.Core.Tests.csproj --filter "Category!=Multicast"
 
 # Консольный стенд: два таких в разных окнах — основной способ отлаживать протокол
 dotnet run --project src/ChudikChat.Cli -- Алиса
 ```
 
 ## Установщик для Windows
+
+**Готовый MSI лежит на [странице релизов](https://github.com/dimaaan/chudik-chat/releases)** —
+он собирается автоматически на каждый коммит в `main`. Собирать самому нужно,
+только если правишь код.
 
 ```powershell
 # подготовка WiX — один раз на машину

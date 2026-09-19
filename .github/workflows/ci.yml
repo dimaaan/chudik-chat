@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # Отменять на лету можно только черновые прогоны. Сборку релиза с main прерывать
+  # нельзя: она уже могла создать тег, и следующий запуск на него наткнётся.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  tests:
+    name: Тесты
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Прогон идёт по csproj, а НЕ по ChudikChat.slnx. Решение включает
+      # ChudikChat.App, и сборка решения потребовала бы воркло́ды android
+      # и maccatalyst — несколько минут установки ради нуля покрытия.
+      # Тестовый проект ссылается только на ChudikChat.Core, а тот — чистый BCL.
+      #
+      # Category!=Multicast отсеивает три теста, которым нужна многоадресная
+      # рассылка и входящий UDP 45678. На виртуалках сборочных служб этого может
+      # не быть вовсе. Они гоняются локально — см. DiscoveryTests.
+      - name: Прогон тестов
+        run: >
+          dotnet test tests/ChudikChat.Core.Tests/ChudikChat.Core.Tests.csproj
+          -c Release
+          --filter "Category!=Multicast"
+          --logger "trx;LogFileName=tests.trx"
+          --results-directory artifacts/test-results
+
+      - name: Выгрузить результаты
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          if-no-files-found: ignore
+
+  release:
+    name: Установщик и релиз
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      # Восстановление проходит по всем целевым платформам проекта, даже когда
+      # собирается одна, поэтому нужны и android, и maccatalyst. Команда
+      # разбирается сама — перечислять их руками не надо.
+      - name: Воркло́ды MAUI
+        run: dotnet workload restore src/ChudikChat.App/ChudikChat.App.csproj
+
+      - name: WiX
+        run: |
+          dotnet tool install --global wix
+          wix eula accept wix7
+          wix extension add -g WixToolset.Firewall.wixext
+
+      # Версия = ApplicationDisplayVersion из csproj + номер запуска.
+      #
+      # ВНИМАНИЕ: github.run_number привязан к этому файлу. Если ci.yml удалить
+      # и создать заново, нумерация начнётся с единицы: версия пойдёт назад,
+      # тег окажется занят, а обновление поверх установленного MSI перестанет
+      # работать — Windows Installer сравнивает версии. Лечится разово:
+      # поднять ApplicationDisplayVersion в csproj до 1.1.
+      - name: Версия
+        id: version
+        run: |
+          $csproj = [xml](Get-Content src/ChudikChat.App/ChudikChat.App.csproj)
+          $base = $csproj.SelectSingleNode('//ApplicationDisplayVersion').InnerText.Trim()
+          if (-not $base) { throw 'в csproj не нашёлся ApplicationDisplayVersion' }
+          $version = "$base.$env:GITHUB_RUN_NUMBER"
+          Write-Host "версия: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Сборка установщика
+        run: ./build/publish-windows.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Публикация релиза
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $msi = "artifacts/Chudik-$v-x64.msi"
+          if (-not (Test-Path $msi)) { throw "нет файла $msi" }
+
+          $notes = @"
+          Установщик Чудика для Windows x64.
+
+          Поставить: скачать ``Chudik-$v-x64.msi`` и запустить. Нужны права
+          администратора — установщик заводит правила брандмауэра, без которых
+          Windows молча режет входящие соединения и пиры не находятся.
+
+          Пакет не подписан, поэтому Windows покажет «Windows защитила ваш
+          компьютер»: «Подробнее» → «Выполнить в любом случае».
+
+          Внутри всё нужное, включая рантайм .NET и Windows App SDK — ставить
+          ничего заранее не требуется. Удаление не трогает принятые файлы
+          в ``Downloads\ChudikChat``.
+
+          Собрано из $env:GITHUB_SHA
+          "@
+
+          gh release create "v$v" $msi --title "Чудик $v" --notes $notes
+          if ($LASTEXITCODE -ne 0) { throw "не удалось создать релиз (код $LASTEXITCODE)" }
+
+      # Каждый коммит в main — релиз на 83 МБ. Без чистки страница релизов
+      # за пару месяцев становится нечитаемой.
+      - name: Убрать старые релизы
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $keep = 10
+          $all = gh release list --limit 200 --json tagName,createdAt | ConvertFrom-Json
+          if (-not $all) { return }
+
+          $old = @($all | Sort-Object { [datetime]$_.createdAt } -Descending | Select-Object -Skip $keep)
+          Write-Host "релизов всего: $($all.Count), к удалению: $($old.Count)"
+
+          foreach ($r in $old) {
+            Write-Host "  удаляю $($r.tagName)"
+            gh release delete $r.tagName --yes --cleanup-tag
+          }

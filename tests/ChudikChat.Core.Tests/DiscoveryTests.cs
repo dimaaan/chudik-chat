@@ -9,8 +9,22 @@ namespace ChudikChat.Core.Tests;
 /// Если тут что-то падает — смотреть на брандмауэр и на список интерфейсов,
 /// а не на протокол.
 /// </summary>
+/// <remarks>
+/// Тесты, помеченные <c>Category=Multicast</c>, требуют рабочей многоадресной
+/// рассылки и входящего UDP на порт 45678. На виртуалках сборочных служб этого
+/// может не быть вовсе, поэтому в CI они отсеиваются фильтром
+/// <c>Category!=Multicast</c>, а гоняются локально. Имя категории латиницей
+/// намеренно: оно едет в аргумент командной строки, и кириллица там — лишний
+/// источник отказов.
+///
+/// Прогонять их обязательно перед любой правкой <c>UdpDiscoveryService</c>:
+/// автоматика обнаружение пиров не покрывает.
+/// </remarks>
 public class DiscoveryTests
 {
+    private const string Category = "Category";
+    private const string Multicast = "Multicast";
+
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
 
     [Fact]
@@ -43,6 +57,7 @@ public class DiscoveryTests
     }
 
     [Fact]
+    [Trait(Category, Multicast)]
     public async Task Two_engines_on_one_machine_find_each_other()
     {
         await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
@@ -65,6 +80,7 @@ public class DiscoveryTests
     }
 
     [Fact]
+    [Trait(Category, Multicast)]
     public async Task Discovered_peer_can_be_written_to_without_knowing_its_address()
     {
         await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
@@ -86,6 +102,7 @@ public class DiscoveryTests
     }
 
     [Fact]
+    [Trait(Category, Multicast)]
     public async Task Peer_disappears_after_a_farewell()
     {
         await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };

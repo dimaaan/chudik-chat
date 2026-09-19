@@ -54,7 +54,11 @@ if (-not $SkipPublish) {
     # Правильного флага здесь не нужно вовсе: MAUI сама ставит win-x64 для
     # Windows-цели, а WindowsAppSDKSelfContained=true — умолчание при
     # WindowsPackageType=None.
-    dotnet publish $project -f $tfm -c Release --self-contained true -o $publishDir -v minimal -nologo
+    # ApplicationDisplayVersion уезжает в метаданные exe, чтобы в свойствах файла
+    # стояло то же число, что в имени MSI и в теге релиза.
+    dotnet publish $project -f $tfm -c Release --self-contained true `
+        -p:ApplicationDisplayVersion=$Version `
+        -o $publishDir -v minimal -nologo
     if ($LASTEXITCODE -ne 0) { throw "публикация не удалась (код $LASTEXITCODE)" }
 }
 

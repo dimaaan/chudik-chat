@@ -18,6 +18,15 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!--
+    Без этого файла xunit гоняет классы тестов параллельно, и движки из соседних
+    классов находят друг друга по UDP: PeerAppeared срабатывает на чужого пира,
+    а тесты ChatEngineTests начинают падать тем чаще, чем медленнее машина.
+  -->
+  <ItemGroup>
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\ChudikChat.Core\ChudikChat.Core.csproj" />
   </ItemGroup>
