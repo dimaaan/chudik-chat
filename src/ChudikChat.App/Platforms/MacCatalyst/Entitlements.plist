@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <!-- Песочница обязательна для распространения через Mac App Store. -->
+        <key>com.apple.security.app-sandbox</key>
+        <true/>
+
+        <!-- Исходящие соединения: мы звоним другим устройствам. -->
+        <key>com.apple.security.network.client</key>
+        <true/>
+
+        <!-- Входящие: мы сами слушаем TCP и UDP, без этого нас никто не найдёт. -->
+        <key>com.apple.security.network.server</key>
+        <true/>
+
+        <!-- Выбор папки для отправки и папки приёма. -->
+        <key>com.apple.security.files.user-selected.read-write</key>
+        <true/>
+
+        <!--
+            com.apple.developer.networking.multicast сюда сознательно НЕ добавлен:
+            он выдаётся Apple по отдельному запросу и без выданного профиля
+            ломает подпись сборки. Если многоадресная рассылка на macOS не заработает,
+            остаются направленный broadcast и подключение по адресу вручную.
+        -->
+    </dict>
+</plist>

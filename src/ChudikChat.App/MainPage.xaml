@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="ChudikChat.App.MainPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    xmlns:vm="clr-namespace:ChudikChat.App.ViewModels"
+    x:DataType="vm:MainViewModel"
+    Shell.NavBarIsVisible="False">
+
+    <ContentPage.Resources>
+        <Color x:Key="Accent">#2F6FEB</Color>
+        <toolkit:InvertedBoolConverter x:Key="Not" />
+
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="BackgroundColor" Value="Transparent" />
+            <Setter Property="TextColor" Value="{AppThemeBinding Light=#2F6FEB, Dark=#8AB4FF}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="MinimumWidthRequest" Value="0" />
+        </Style>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1B1D21}">
+
+        <!--  Шапка  -->
+        <Grid
+            Grid.Row="0"
+            ColumnDefinitions="Auto,*,Auto,Auto"
+            Padding="12,10"
+            ColumnSpacing="6"
+            BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
+
+            <Button
+                x:Name="BackButton"
+                Grid.Column="0"
+                Style="{StaticResource ToolButton}"
+                Text="‹ Список"
+                IsVisible="False"
+                Command="{Binding GoBackCommand}" />
+
+            <VerticalStackLayout Grid.Column="1" Spacing="1">
+                <Label
+                    FontSize="15"
+                    FontAttributes="Bold"
+                    Text="{Binding MyName}"
+                    TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                <Label
+                    FontSize="11"
+                    Text="{Binding Status}"
+                    LineBreakMode="TailTruncation"
+                    TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+            </VerticalStackLayout>
+
+            <Button
+                Grid.Column="2"
+                Style="{StaticResource ToolButton}"
+                Text="Имя"
+                Command="{Binding RenameCommand}" />
+
+            <Button
+                Grid.Column="3"
+                Style="{StaticResource ToolButton}"
+                Text="Обновить"
+                Command="{Binding RefreshCommand}" />
+        </Grid>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="PeersColumn" Width="300" />
+                <ColumnDefinition x:Name="ChatColumn" Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  Кто в сети  -->
+            <Grid
+                x:Name="PeersPane"
+                Grid.Column="0"
+                RowDefinitions="*,Auto"
+                BackgroundColor="{AppThemeBinding Light=#FAFBFD, Dark=#1F2126}">
+
+                <CollectionView
+                    Grid.Row="0"
+                    ItemsSource="{Binding Peers}"
+                    SelectedItem="{Binding SelectedPeer, Mode=TwoWay}"
+                    SelectionMode="Single">
+
+                    <CollectionView.EmptyView>
+                        <VerticalStackLayout Padding="24" Spacing="6" VerticalOptions="Center">
+                            <Label
+                                FontSize="14"
+                                HorizontalTextAlignment="Center"
+                                Text="Пока никого нет в сети"
+                                TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+                            <Label
+                                FontSize="12"
+                                HorizontalTextAlignment="Center"
+                                Text="Откройте «Чудик» на другом устройстве в той же сети"
+                                TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
+                        </VerticalStackLayout>
+                    </CollectionView.EmptyView>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PeerViewModel">
+                            <Grid Padding="12,10" ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
+                                <Border
+                                    Grid.Column="0"
+                                    HeightRequest="36"
+                                    WidthRequest="36"
+                                    StrokeThickness="0"
+                                    BackgroundColor="{StaticResource Accent}"
+                                    StrokeShape="RoundRectangle 18">
+                                    <Label
+                                        FontSize="16"
+                                        FontAttributes="Bold"
+                                        HorizontalOptions="Center"
+                                        VerticalOptions="Center"
+                                        Text="{Binding Initials}"
+                                        TextColor="White" />
+                                </Border>
+
+                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                    <Label
+                                        FontSize="14"
+                                        LineBreakMode="TailTruncation"
+                                        Text="{Binding DisplayName}"
+                                        TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                                    <Label
+                                        FontSize="11"
+                                        LineBreakMode="TailTruncation"
+                                        Text="{Binding Address}"
+                                        TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
+                                </VerticalStackLayout>
+
+                                <Border
+                                    Grid.Column="2"
+                                    Padding="7,2"
+                                    StrokeThickness="0"
+                                    VerticalOptions="Center"
+                                    IsVisible="{Binding HasUnread}"
+                                    BackgroundColor="{StaticResource Accent}"
+                                    StrokeShape="RoundRectangle 10">
+                                    <Label
+                                        FontSize="11"
+                                        Text="{Binding UnreadCount}"
+                                        TextColor="White" />
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <Button
+                    Grid.Row="1"
+                    Margin="8"
+                    Style="{StaticResource ToolButton}"
+                    Text="Подключиться по адресу"
+                    Command="{Binding AddByAddressCommand}" />
+            </Grid>
+
+            <!--  Переписка  -->
+            <Grid x:Name="ChatPane" Grid.Column="1" RowDefinitions="*,Auto,Auto">
+
+                <Label
+                    Grid.Row="0"
+                    FontSize="14"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center"
+                    Text="Выберите собеседника"
+                    IsVisible="{Binding HasSelection, Converter={StaticResource Not}}"
+                    TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
+
+                <CollectionView
+                    x:Name="MessagesView"
+                    Grid.Row="0"
+                    Margin="0,4"
+                    ItemsSource="{Binding SelectedPeer.Messages}"
+                    IsVisible="{Binding HasSelection}">
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:MessageViewModel">
+                            <Grid Padding="12,3">
+                                <Border
+                                    Padding="12,8"
+                                    MaximumWidthRequest="520"
+                                    StrokeThickness="0"
+                                    HorizontalOptions="Start"
+                                    StrokeShape="RoundRectangle 14"
+                                    BackgroundColor="{AppThemeBinding Light=#EEF1F6, Dark=#2A2E35}">
+
+                                    <Border.Triggers>
+                                        <DataTrigger
+                                            TargetType="Border"
+                                            Binding="{Binding IsMine}"
+                                            Value="True">
+                                            <Setter Property="HorizontalOptions" Value="End" />
+                                            <Setter Property="BackgroundColor" Value="{StaticResource Accent}" />
+                                        </DataTrigger>
+                                    </Border.Triggers>
+
+                                    <VerticalStackLayout Spacing="2">
+                                        <Label
+                                            FontSize="14"
+                                            Text="{Binding Text}"
+                                            TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}">
+                                            <Label.Triggers>
+                                                <DataTrigger
+                                                    TargetType="Label"
+                                                    Binding="{Binding IsMine}"
+                                                    Value="True">
+                                                    <Setter Property="TextColor" Value="White" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+
+                                        <Label
+                                            FontSize="10"
+                                            HorizontalOptions="End"
+                                            TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#7C838E}">
+                                            <Label.Text>
+                                                <MultiBinding StringFormat="{}{0} {1}">
+                                                    <Binding Path="TimeText" />
+                                                    <Binding Path="StateText" />
+                                                </MultiBinding>
+                                            </Label.Text>
+                                            <Label.Triggers>
+                                                <DataTrigger
+                                                    TargetType="Label"
+                                                    Binding="{Binding IsMine}"
+                                                    Value="True">
+                                                    <Setter Property="TextColor" Value="#D6E2FF" />
+                                                </DataTrigger>
+                                            </Label.Triggers>
+                                        </Label>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!--  Передачи  -->
+                <CollectionView
+                    Grid.Row="1"
+                    Margin="12,0"
+                    MaximumHeightRequest="180"
+                    ItemsSource="{Binding SelectedPeer.Transfers}">
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="vm:TransferViewModel">
+                            <Border
+                                Margin="0,3"
+                                Padding="10,8"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                BackgroundColor="{AppThemeBinding Light=#F1F4F9, Dark=#272B31}">
+
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                                    <VerticalStackLayout Grid.Column="0" Spacing="3">
+                                        <Label
+                                            FontSize="13"
+                                            LineBreakMode="MiddleTruncation"
+                                            Text="{Binding Title}"
+                                            TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                                        <ProgressBar
+                                            Progress="{Binding Fraction}"
+                                            ProgressColor="{StaticResource Accent}"
+                                            IsVisible="{Binding IsFinished, Converter={StaticResource Not}}" />
+                                        <Label
+                                            FontSize="11"
+                                            Text="{Binding StateText}"
+                                            TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+                                    </VerticalStackLayout>
+
+                                    <Button
+                                        Grid.Column="1"
+                                        Style="{StaticResource ToolButton}"
+                                        Text="Открыть"
+                                        IsVisible="{Binding CanOpenFolder}"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MainViewModel}}, Path=OpenFolderCommand}"
+                                        CommandParameter="{Binding .}" />
+
+                                    <Button
+                                        Grid.Column="2"
+                                        Style="{StaticResource ToolButton}"
+                                        Text="Отмена"
+                                        IsVisible="{Binding CanCancel}"
+                                        Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MainViewModel}}, Path=CancelTransferCommand}"
+                                        CommandParameter="{Binding .}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!--  Ввод  -->
+                <Grid
+                    Grid.Row="2"
+                    Padding="12,8"
+                    ColumnDefinitions="Auto,Auto,*,Auto"
+                    ColumnSpacing="6"
+                    IsVisible="{Binding HasSelection}"
+                    BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
+
+                    <Button
+                        Grid.Column="0"
+                        Style="{StaticResource ToolButton}"
+                        Text="Файл"
+                        Command="{Binding PickFilesCommand}" />
+
+                    <Button
+                        Grid.Column="1"
+                        Style="{StaticResource ToolButton}"
+                        Text="Папка"
+                        IsVisible="{Binding CanSendFolders}"
+                        Command="{Binding PickFolderCommand}" />
+
+                    <Entry
+                        Grid.Column="2"
+                        Placeholder="Сообщение"
+                        Text="{Binding Draft, Mode=TwoWay}"
+                        ReturnCommand="{Binding SendCommand}" />
+
+                    <Button
+                        Grid.Column="3"
+                        Padding="16,6"
+                        Text="Отправить"
+                        TextColor="White"
+                        BackgroundColor="{StaticResource Accent}"
+                        Command="{Binding SendCommand}" />
+                </Grid>
+            </Grid>
+        </Grid>
+    </Grid>
+</ContentPage>

@@ -1,0 +1,39 @@
+# Сборка
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+*.binlog
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+launchSettings.json
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Android
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# Apple
+*.ipa
+*.dSYM/
+DerivedData/
+
+# Прочее
+.DS_Store
+Thumbs.db
+*.swp

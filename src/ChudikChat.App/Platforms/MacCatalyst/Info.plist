@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>2</integer>
+	</array>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.social-networking</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>XSAppIconAssets</key>
+	<string>Assets.xcassets/appicon.appiconset</string>
+
+	<!--
+		macOS 15 и новее спрашивает разрешение на доступ к локальной сети.
+		Без этого ключа запрос не показывается вовсе: всё локальное молча не работает,
+		и в «Конфиденциальности» приложение даже не появляется.
+		Entitlement com.apple.developer.networking.multicast сюда не добавляем —
+		он требует отдельно выданного Apple профиля и ломает подпись, если запрошен без него.
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>«Чудик» ищет устройства в вашей домашней сети, чтобы показать, кто сейчас онлайн, и передавать сообщения и файлы напрямую.</string>
+
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_chudik._tcp</string>
+		<string>_chudik._udp</string>
+	</array>
+</dict>
+</plist>

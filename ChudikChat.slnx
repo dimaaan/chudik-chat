@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ChudikChat.App/ChudikChat.App.csproj" />
+    <Project Path="src/ChudikChat.Cli/ChudikChat.Cli.csproj" />
+    <Project Path="src/ChudikChat.Core/ChudikChat.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ChudikChat.Core.Tests/ChudikChat.Core.Tests.csproj" />
+  </Folder>
+</Solution>
