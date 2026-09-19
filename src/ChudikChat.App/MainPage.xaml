@@ -4,6 +4,7 @@
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
     xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
+    xmlns:conv="clr-namespace:ChudikChat.App.Converters"
     xmlns:vm="clr-namespace:ChudikChat.App.ViewModels"
     x:DataType="vm:MainViewModel"
     Shell.NavBarIsVisible="False">
@@ -11,6 +12,7 @@
     <ContentPage.Resources>
         <Color x:Key="Accent">#2F6FEB</Color>
         <toolkit:InvertedBoolConverter x:Key="Not" />
+        <conv:MessageTextConverter x:Key="MessageText" />
 
         <Style x:Key="ToolButton" TargetType="Button">
             <Setter Property="BackgroundColor" Value="Transparent" />
@@ -198,9 +200,10 @@
                                     </Border.Triggers>
 
                                     <VerticalStackLayout Spacing="2">
+                                        <!--  Размеченный текст, а не Text: ссылки внутри нажимаются.  -->
                                         <Label
                                             FontSize="14"
-                                            Text="{Binding Text}"
+                                            FormattedText="{Binding Text, Converter={StaticResource MessageText}}"
                                             TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}">
                                             <Label.Triggers>
                                                 <DataTrigger
