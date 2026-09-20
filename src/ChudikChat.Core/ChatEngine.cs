@@ -29,6 +29,30 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     private readonly TcpListenerService _listener = new();
 
     /// <summary>
+    /// Картинки по отпечатку. Читается и пишется ИСКЛЮЧИТЕЛЬНО в цикле событий.
+    /// Только в памяти: на диск аватары не попадают, как и всё остальное.
+    /// </summary>
+    private readonly Dictionary<string, AvatarImage> _avatars = [];
+
+    /// <summary>
+    /// Отпечатки, за которыми уже ходили: неважно, успешно или нет.
+    /// </summary>
+    /// <remarks>
+    /// За отпечатком ходят ровно один раз. Пометка ставится ДО похода и при неудаче
+    /// не снимается — поэтому здесь же и дедупликация (два пира с одной картинкой —
+    /// один поход), и запрет повтора. Ни счётчиков попыток, ни отступов, ни таймеров:
+    /// объявления идут каждые четыре секунды, и любая схема повторов превратилась бы
+    /// в шквал соединений на всю сеть.
+    ///
+    /// Чистится вместе с <see cref="_avatars"/> в <see cref="ReapAvatars"/>, иначе
+    /// неудачный отпечаток остался бы помеченным навсегда.
+    /// </remarks>
+    private readonly HashSet<string> _avatarAsked = [];
+
+    /// <summary>Сколько картинок держим. Потолок на случай людной сети.</summary>
+    private const int MaxCachedAvatars = 64;
+
+    /// <summary>
     /// Слепок маршрутов, публикуемый циклом событий для отправителей.
     /// Ссылка меняется целиком, содержимое неизменяемо — читать можно из любого потока.
     /// </summary>
@@ -38,6 +62,13 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     private readonly UdpDiscoveryService _discovery;
 
     private volatile string _displayName = DeviceNames.Local();
+
+    /// <summary>
+    /// Своя картинка. volatile, как и имя: голова присваивает её из продолжения на пуле
+    /// потоков уже после запуска, а читают поток обнаружения и потоки входящих соединений.
+    /// </summary>
+    private volatile AvatarImage? _avatar;
+
     private Task? _loop;
     private Task? _accept;
     private Task? _discoveryTask;
@@ -46,7 +77,7 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     public ChatEngine()
     {
         _discovery = new UdpDiscoveryService(
-            () => new LocalBeacon(LocalId, _displayName, _listener.Port),
+            () => new LocalBeacon(LocalId, _displayName, _listener.Port, _avatar?.Tag),
             OnObserved,
             message => Publish(new DiagnosticEvent(message)));
     }
@@ -85,6 +116,21 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     /// молча складывать чужие файлы на диск приложение не должно.
     /// </summary>
     public Func<IncomingTransferOffer, CancellationToken, Task<TransferDecision>>? TransferDecider { get; set; }
+
+    /// <summary>
+    /// Картинка учётной записи хозяина. Ядро её не добывает — подставляет голова приложения.
+    /// </summary>
+    /// <remarks>
+    /// Свойство, а не <c>Func&lt;&gt;</c>, как <see cref="DeviceNames.LocalProvider"/>: добыть
+    /// картинку у операционной системы — медленная работа (на macOS вообще отдельный
+    /// процесс), а провайдер дёргался бы из цикла объявлений каждые четыре секунды
+    /// и на каждом входящем соединении.
+    /// </remarks>
+    public AvatarImage? LocalAvatar
+    {
+        get => _avatar;
+        set => _avatar = value;
+    }
 
     /// <summary>
     /// Куда складывать принятое. Внутри создаётся отдельная папка на каждую передачу.
@@ -151,6 +197,24 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         }
     }
 
+    /// <summary>
+    /// Сколько картинок сейчас в кэше. Только для тестов: словарь принадлежит циклу
+    /// событий, и читать его из чужого потока нельзя даже после <see cref="FlushAsync"/> —
+    /// таймер уборки продолжает тикать.
+    /// </summary>
+    internal async Task<int> CachedAvatarCountAsync(CancellationToken ct = default)
+    {
+        if (_loop is null)
+            return 0;
+
+        var signal = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!_events.Writer.TryWrite(new InspectEvent(signal)))
+            return 0;
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _lifetime.Token);
+        return await signal.Task.WaitAsync(linked.Token).ConfigureAwait(false);
+    }
+
     public async Task<ChatMessage> SendTextAsync(PeerId peer, string text, CancellationToken ct = default)
     {
         if (!_routes.TryGetValue(peer, out var endpoints) || endpoints.Count == 0)
@@ -173,7 +237,14 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
                         .SendTextAsync(endpoint, LocalIdentity(), frame, ct)
                         .ConfigureAwait(false);
 
-                    Publish(new PeerSeenEvent(remote.PeerId, remote.DisplayName, endpoint.Address, remote.ListenPort, 0, true));
+                    Publish(new PeerSeenEvent(
+                        remote.PeerId,
+                        remote.DisplayName,
+                        endpoint.Address,
+                        remote.ListenPort,
+                        0,
+                        true,
+                        Avatars.SanitizeTag(remote.AvatarTag)));
                     await FlushAsync(ct).ConfigureAwait(false);
                     return message with { State = MessageState.Delivered };
                 }
@@ -208,7 +279,14 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
                 .SendTextAsync(target, LocalIdentity(), frame, ct)
                 .ConfigureAwait(false);
 
-            Publish(new PeerSeenEvent(remote.PeerId, remote.DisplayName, target.Address, remote.ListenPort, 0, true));
+            Publish(new PeerSeenEvent(
+                remote.PeerId,
+                remote.DisplayName,
+                target.Address,
+                remote.ListenPort,
+                0,
+                true,
+                Avatars.SanitizeTag(remote.AvatarTag)));
             await FlushAsync(ct).ConfigureAwait(false);
             return message with { Peer = remote.PeerId, State = MessageState.Delivered };
         }
@@ -586,14 +664,25 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         return progress;
     }
 
-    void IExchangeSink.OnIdentified(PeerId peer, string displayName, IPEndPoint remote, int listenPort)
-        => Publish(new PeerSeenEvent(peer, displayName, remote.Address, listenPort, 0, false));
+    void IExchangeSink.OnIdentified(
+        PeerId peer,
+        string displayName,
+        IPEndPoint remote,
+        int listenPort,
+        string? avatarTag)
+        => Publish(new PeerSeenEvent(peer, displayName, remote.Address, listenPort, 0, false, avatarTag));
 
     void IExchangeSink.OnText(PeerId peer, Guid messageId, DateTimeOffset sentAt, string text)
         => Publish(new TextReceivedEvent(peer, messageId, sentAt, text));
 
     private Task HandleInboundAsync(Socket socket, CancellationToken ct)
-        => InboundExchange.HandleAsync(socket, LocalIdentity(), this, ct);
+    {
+        // Одно чтение поля на оба применения. Прочитав его дважды, при смене картинки
+        // между чтениями мы объявили бы отпечаток A, а отдавать отказывались бы уже B —
+        // и спрашивающий больше не пришёл бы, попытка у него одна.
+        var avatar = _avatar;
+        return InboundExchange.HandleAsync(socket, LocalIdentity(avatar), avatar, this, ct);
+    }
 
     private void OnObserved(DiscoveryObservation observation)
     {
@@ -609,7 +698,8 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
             observation.Address,
             observation.ListenPort,
             observation.InterfaceIndex,
-            ConnectSucceeded: false));
+            ConnectSucceeded: false,
+            observation.AvatarTag));
     }
 
     private async Task RunExpiryAsync(CancellationToken ct)
@@ -627,11 +717,14 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         }
     }
 
-    private IdentifyFrame LocalIdentity() => new()
+    private IdentifyFrame LocalIdentity() => LocalIdentity(_avatar);
+
+    private IdentifyFrame LocalIdentity(AvatarImage? avatar) => new()
     {
         PeerId = LocalId,
         DisplayName = _displayName,
         ListenPort = _listener.Port,
+        AvatarTag = avatar?.Tag,
     };
 
     private void Publish(EngineEvent e) => _events.Writer.TryWrite(e);
@@ -676,8 +769,20 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
                         Raise(TransferChanged, progress.Progress);
                         break;
 
+                    case AvatarFetchedEvent fetched:
+                        ApplyAvatarFetched(fetched);
+                        break;
+
+                    case AvatarFetchFailedEvent failed:
+                        ApplyAvatarFetchFailed(failed);
+                        break;
+
                     case BarrierEvent barrier:
                         barrier.Signal.TrySetResult();
+                        break;
+
+                    case InspectEvent inspect:
+                        inspect.Signal.TrySetResult(_avatars.Count);
                         break;
                 }
             }
@@ -704,6 +809,7 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
 
         peer.DisplayName = seen.DisplayName;
         peer.LastSeenUtc = now;
+        peer.SetAvatarTag(seen.AvatarTag);
 
         var endpoint = peer.TouchEndpoint(seen.Address, seen.ListenPort, seen.InterfaceIndex, now);
         if (seen.ConnectSucceeded)
@@ -713,7 +819,100 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         }
 
         RepublishRoutes();
-        Raise(isNew ? PeerAppeared : PeerUpdated, peer.ToSnapshot());
+        Raise(isNew ? PeerAppeared : PeerUpdated, peer.ToSnapshot(CachedAvatar(peer)));
+
+        MaybeFetchAvatar(peer);
+    }
+
+    private AvatarImage? CachedAvatar(PeerInfo peer) =>
+        peer.AvatarTag is { } tag && _avatars.TryGetValue(tag, out var image) ? image : null;
+
+    /// <summary>
+    /// Отправляет за картинкой, если за этим отпечатком ещё не ходили.
+    /// </summary>
+    /// <remarks>
+    /// Вызывается на каждое объявление, то есть примерно раз в четыре секунды на пира.
+    /// Поэтому все проверки — за постоянное время, а решение принимается одним
+    /// добавлением в множество: сходили — и всё, повторов нет.
+    /// </remarks>
+    private void MaybeFetchAvatar(PeerInfo peer)
+    {
+        if (peer.AvatarTag is not { } tag)
+            return;
+
+        // Картинка уже есть — возможно, принесённая походом к совсем другому пиру.
+        if (_avatars.ContainsKey(tag))
+            return;
+
+        if (!_routes.TryGetValue(peer.Id, out var routes) || routes.Count == 0)
+            return;
+
+        if (!_avatarAsked.Add(tag))
+            return;
+
+        var target = peer.Id;
+        _ = Task.Run(() => FetchAvatarAsync(target, tag, routes), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// Поход за картинкой. Идёт вне цикла событий и ничего в движке не трогает:
+    /// единственный обратный путь — событие в канале.
+    /// </summary>
+    private async Task FetchAvatarAsync(PeerId peer, string tag, IReadOnlyList<IPEndPoint> routes)
+    {
+        var identity = LocalIdentity();
+        string? lastError = null;
+
+        foreach (var endpoint in routes)
+        {
+            try
+            {
+                var image = await OutboundExchange
+                    .FetchAvatarAsync(endpoint, identity, peer, tag, _lifetime.Token)
+                    .ConfigureAwait(false);
+
+                Publish(new AvatarFetchedEvent(peer, tag, image));
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception e)
+            {
+                lastError = e.Message;
+            }
+        }
+
+        Publish(new AvatarFetchFailedEvent(peer, tag, lastError ?? "адрес пира неизвестен"));
+    }
+
+    private void ApplyAvatarFetched(AvatarFetchedEvent fetched)
+    {
+        if (_avatars.Count >= MaxCachedAvatars)
+            return;
+
+        _avatars[fetched.Tag] = fetched.Image;
+
+        // Одна и та же картинка бывает у нескольких пиров — обновляем всех разом,
+        // иначе остальным пришлось бы ждать собственного похода, которого не будет.
+        foreach (var peer in _peers.Values)
+        {
+            if (peer.AvatarTag == fetched.Tag)
+                Raise(PeerUpdated, peer.ToSnapshot(fetched.Image));
+        }
+    }
+
+    /// <summary>
+    /// Неудача не делает ничего, кроме строки в диагностике: чинить нечего,
+    /// пометка «ходили» уже стоит и снимется только с уходом пира.
+    /// </summary>
+    private void ApplyAvatarFetchFailed(AvatarFetchFailedEvent failed)
+    {
+        if (!_peers.TryGetValue(failed.Peer, out var peer) || peer.AvatarTag != failed.Tag)
+            return;
+
+        Raise(Diagnostic, $"картинка от «{peer.DisplayName}» не получена: {failed.Reason}");
     }
 
     /// <summary>
@@ -741,6 +940,8 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     /// </summary>
     private void ApplySweep()
     {
+        ReapAvatars();
+
         if (_peers.Count == 0)
             return;
 
@@ -778,6 +979,52 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
 
         foreach (var id in gone)
             Raise(PeerGone, id);
+    }
+
+    /// <summary>
+    /// Выбрасывает картинки и пометки, на которые больше никто не ссылается.
+    /// </summary>
+    /// <remarks>
+    /// Чистить оба множества обязательно, и именно вместе. Останься пометка без картинки —
+    /// отпечаток, за которым сходили неудачно, был бы помечен навсегда, и картинка не
+    /// появилась бы даже после перезапуска пира. А так уход пира — единственное, что
+    /// снимает пометку, и возвращение даёт ровно одну свежую попытку.
+    ///
+    /// Раннего выхода по равенству счётчиков здесь нет намеренно: счётчики совпадают
+    /// ровно тогда, когда один лишний отпечаток соседствует с одним незакэшированным,
+    /// и утечка стала бы беззвучной.
+    /// </remarks>
+    private void ReapAvatars()
+    {
+        if (_avatars.Count == 0 && _avatarAsked.Count == 0)
+            return;
+
+        var live = new HashSet<string>(_peers.Count + 1);
+
+        foreach (var peer in _peers.Values)
+        {
+            if (peer.AvatarTag is { } tag)
+                live.Add(tag);
+        }
+
+        if (_avatar?.Tag is { } mine)
+            live.Add(mine);
+
+        List<string>? doomed = null;
+
+        foreach (var tag in _avatars.Keys)
+        {
+            if (!live.Contains(tag))
+                (doomed ??= []).Add(tag);
+        }
+
+        if (doomed is not null)
+        {
+            foreach (var tag in doomed)
+                _avatars.Remove(tag);
+        }
+
+        _avatarAsked.RemoveWhere(x => !live.Contains(x));
     }
 
     /// <summary>
@@ -931,7 +1178,8 @@ internal sealed record PeerSeenEvent(
     IPAddress Address,
     int ListenPort,
     int InterfaceIndex,
-    bool ConnectSucceeded) : EngineEvent;
+    bool ConnectSucceeded,
+    string? AvatarTag = null) : EngineEvent;
 
 internal sealed record TextReceivedEvent(
     PeerId Peer,
@@ -950,3 +1198,16 @@ internal sealed record DiagnosticEvent(string Message) : EngineEvent;
 
 /// <summary>Метка в очереди: когда цикл до неё дошёл, всё, что было положено раньше, уже применено.</summary>
 internal sealed record BarrierEvent(TaskCompletionSource Signal) : EngineEvent;
+
+/// <summary>Картинка доехала и проверена.</summary>
+internal sealed record AvatarFetchedEvent(PeerId Peer, string Tag, AvatarImage Image) : EngineEvent;
+
+/// <summary>За картинкой сходили и не принесли. Второй раз не пойдём.</summary>
+internal sealed record AvatarFetchFailedEvent(PeerId Peer, string Tag, string Reason) : EngineEvent;
+
+/// <summary>
+/// Вопрос к циклу о его собственном состоянии. Нужен тестам: словари движка
+/// принадлежат циклу, и читать их из чужого потока нельзя даже после барьера —
+/// таймер уборки продолжает тикать.
+/// </summary>
+internal sealed record InspectEvent(TaskCompletionSource<int> Signal) : EngineEvent;

@@ -35,6 +35,9 @@ public sealed class PeerInfo
 
     public string DisplayName { get; set; } = DeviceNames.Fallback;
 
+    /// <summary>Отпечаток картинки, которую пир объявил. Сами байты лежат в кэше движка.</summary>
+    public string? AvatarTag { get; private set; }
+
     public List<PeerEndpoint> Endpoints { get; } = [];
 
     public DateTimeOffset LastSeenUtc { get; set; }
@@ -66,17 +69,29 @@ public sealed class PeerInfo
         return added;
     }
 
-    public PeerSnapshot ToSnapshot()
+    /// <summary>
+    /// Запоминает объявленный отпечаток. Отдельный метод, а не сеттер: смена отпечатка —
+    /// событие, за которым следует поход за новой картинкой, и его должно быть видно.
+    /// </summary>
+    public void SetAvatarTag(string? tag) => AvatarTag = tag;
+
+    public PeerSnapshot ToSnapshot(AvatarImage? avatar = null)
     {
         var best = Endpoints.Count == 0 ? null : Endpoints[0].ToIPEndPoint();
-        return new PeerSnapshot(Id, DisplayName, best, Endpoints.Count, LastSeenUtc);
+        return new PeerSnapshot(Id, DisplayName, best, Endpoints.Count, LastSeenUtc, avatar);
     }
 }
 
 /// <summary>Неизменяемый слепок для UI: пересекать границу потока должен он, а не <see cref="PeerInfo"/>.</summary>
+/// <param name="Avatar">
+/// Картинка, если она уже добыта. Отдельного поля с отпечатком здесь нет намеренно:
+/// отпечаток движок узнаёт раньше, чем байты, и запомни голова его отдельно — следующий
+/// слепок, уже с картинкой, она сочла бы «тем же самым», и картинка не появилась бы никогда.
+/// </param>
 public sealed record PeerSnapshot(
     PeerId Id,
     string DisplayName,
     IPEndPoint? PrimaryEndpoint,
     int EndpointCount,
-    DateTimeOffset LastSeenUtc);
+    DateTimeOffset LastSeenUtc,
+    AvatarImage? Avatar = null);

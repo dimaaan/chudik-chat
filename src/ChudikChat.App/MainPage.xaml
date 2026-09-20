@@ -39,7 +39,7 @@
         <!--  Шапка  -->
         <Grid
             Grid.Row="0"
-            ColumnDefinitions="Auto,*,Auto,Auto"
+            ColumnDefinitions="Auto,Auto,*,Auto,Auto"
             Padding="12,10"
             ColumnSpacing="6"
             BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
@@ -52,7 +52,30 @@
                 IsVisible="False"
                 Command="{Binding GoBackCommand}" />
 
-            <VerticalStackLayout Grid.Column="1" Spacing="1">
+            <!--
+                Своя картинка, если операционная система её отдала. Буквы здесь нет
+                намеренно: имя написано рядом целиком, и кружок с той же буквой — лишнее.
+                Скрытый элемент схлопывает колонку Auto в ноль, поэтому там, где картинки
+                не бывает, шапка выглядит как раньше.
+            -->
+            <Image
+                Grid.Column="1"
+                HeightRequest="32"
+                WidthRequest="32"
+                Margin="0,0,8,0"
+                VerticalOptions="Center"
+                Aspect="AspectFill"
+                Source="{Binding MyAvatar}"
+                IsVisible="{Binding HasMyAvatar}">
+                <Image.Clip>
+                    <EllipseGeometry
+                        Center="16,16"
+                        RadiusX="16"
+                        RadiusY="16" />
+                </Image.Clip>
+            </Image>
+
+            <VerticalStackLayout Grid.Column="2" Spacing="1">
                 <Label
                     FontSize="15"
                     FontAttributes="Bold"
@@ -66,13 +89,13 @@
             </VerticalStackLayout>
 
             <Button
-                Grid.Column="2"
+                Grid.Column="3"
                 Style="{StaticResource ToolButton}"
                 Text="Имя"
                 Command="{Binding RenameCommand}" />
 
             <Button
-                Grid.Column="3"
+                Grid.Column="4"
                 Style="{StaticResource ToolButton}"
                 Text="Обновить"
                 Command="{Binding RefreshCommand}" />
@@ -115,21 +138,49 @@
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="vm:PeerViewModel">
                             <Grid Padding="12,10" ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
-                                <Border
-                                    Grid.Column="0"
-                                    HeightRequest="36"
-                                    WidthRequest="36"
-                                    StrokeThickness="0"
-                                    BackgroundColor="{StaticResource Accent}"
-                                    StrokeShape="RoundRectangle 18">
-                                    <Label
-                                        FontSize="16"
-                                        FontAttributes="Bold"
-                                        HorizontalOptions="Center"
-                                        VerticalOptions="Center"
-                                        Text="{Binding Initials}"
-                                        TextColor="White" />
-                                </Border>
+                                <Grid Grid.Column="0" HeightRequest="36" WidthRequest="36">
+
+                                    <!--
+                                        Подложка: она же кружок с буквой, когда картинки нет,
+                                        она же фон под картинкой с прозрачностью, когда есть.
+                                    -->
+                                    <Border
+                                        HeightRequest="36"
+                                        WidthRequest="36"
+                                        StrokeThickness="0"
+                                        BackgroundColor="{StaticResource Accent}"
+                                        StrokeShape="RoundRectangle 18">
+                                        <Label
+                                            FontSize="16"
+                                            FontAttributes="Bold"
+                                            HorizontalOptions="Center"
+                                            VerticalOptions="Center"
+                                            Text="{Binding Initials}"
+                                            TextColor="White"
+                                            IsVisible="{Binding HasAvatar, Converter={StaticResource Not}}" />
+                                    </Border>
+
+                                    <!--
+                                        Обрезка задана на самой картинке, а не доверена Border:
+                                        содержимое Border обрезают не все обработчики одинаково,
+                                        а VisualElement.Clip применяют все три. Размер
+                                        фиксированный, поэтому геометрия записана числами
+                                        и пересчёта не требует.
+                                    -->
+                                    <Image
+                                        HeightRequest="36"
+                                        WidthRequest="36"
+                                        Aspect="AspectFill"
+                                        Source="{Binding Avatar}"
+                                        IsVisible="{Binding HasAvatar}">
+                                        <Image.Clip>
+                                            <EllipseGeometry
+                                                Center="18,18"
+                                                RadiusX="18"
+                                                RadiusY="18" />
+                                        </Image.Clip>
+                                    </Image>
+                                </Grid>
 
                                 <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
                                     <Label

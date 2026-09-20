@@ -15,9 +15,16 @@ public static class InboundExchange
     /// <summary>Сколько ждём следующий кадр, прежде чем счесть собеседника зависшим.</summary>
     public static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(30);
 
+    /// <param name="localAvatar">
+    /// Наша картинка — та самая, чей отпечаток стоит в <paramref name="localIdentity"/>.
+    /// Передаётся параметром, а не спрашивается у стока: сток обязан быть неблокирующим,
+    /// а так видно, что отпечаток в представлении и отдаваемые байты взяты из одного
+    /// чтения поля движка.
+    /// </param>
     public static async Task HandleAsync(
         Socket socket,
         IdentifyFrame localIdentity,
+        AvatarImage? localAvatar,
         IExchangeSink sink,
         CancellationToken ct)
     {
@@ -60,7 +67,12 @@ public static class InboundExchange
         }
 
         var displayName = DeviceNames.Sanitize(identify.DisplayName);
-        sink.OnIdentified(identify.PeerId, displayName, remote, identify.ListenPort);
+        sink.OnIdentified(
+            identify.PeerId,
+            displayName,
+            remote,
+            identify.ListenPort,
+            Avatars.SanitizeTag(identify.AvatarTag));
 
         // Отвечаем своим представлением: так звонящий узнаёт, кто ему ответил,
         // даже если соединение начато вручную по IP и discovery не участвовал.
@@ -77,6 +89,22 @@ public static class InboundExchange
                 case TextFrame text:
                     sink.OnText(identify.PeerId, text.MessageId, text.SentAt, text.Text);
                     await FrameCodec.WriteAsync(stream, new AckFrame { MessageId = text.MessageId }, ct)
+                        .ConfigureAwait(false);
+                    break;
+
+                // Сравниваем отпечатки, а не отдаём «хоть что-нибудь». Ответив свежими
+                // байтами на устаревший отпечаток, мы завалили бы спрашивающему проверку
+                // хеша, а попытка у него единственная — второй раз он не придёт. Отказ же
+                // честен: он вернётся, когда объявление принесёт новый отпечаток.
+                case AvatarRequestFrame request:
+                    if (localAvatar is null || !string.Equals(request.Tag, localAvatar.Tag, StringComparison.Ordinal))
+                    {
+                        await TryWriteErrorAsync(stream, "такой картинки у меня нет", ct).ConfigureAwait(false);
+                        return;
+                    }
+
+                    await FrameCodec
+                        .WriteAsync(stream, new AvatarFrame { Tag = localAvatar.Tag, Bytes = localAvatar.Buffer }, ct)
                         .ConfigureAwait(false);
                     break;
 

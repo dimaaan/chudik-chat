@@ -36,10 +36,17 @@ public sealed record DiscoveryDatagram
     public required string DisplayName { get; init; }
 
     public required int ListenPort { get; init; }
+
+    /// <summary>
+    /// Отпечаток картинки учётной записи — 32 символа, около полусотни байт в датаграмме.
+    /// Благодаря ему картинка появляется сразу после обнаружения, а не после первого
+    /// сообщения: сама картинка сюда не влезла бы, приём идёт в буфер 8 КБ.
+    /// </summary>
+    public string? AvatarTag { get; init; }
 }
 
 /// <summary>Кто мы для сети прямо сейчас.</summary>
-public sealed record LocalBeacon(PeerId Peer, string DisplayName, int ListenPort);
+public sealed record LocalBeacon(PeerId Peer, string DisplayName, int ListenPort, string? AvatarTag = null);
 
 /// <summary>Замеченный пир. Адрес — из заголовка датаграммы.</summary>
 public sealed record DiscoveryObservation(
@@ -48,7 +55,8 @@ public sealed record DiscoveryObservation(
     IPAddress Address,
     int ListenPort,
     int InterfaceIndex,
-    bool IsFarewell);
+    bool IsFarewell,
+    string? AvatarTag = null);
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

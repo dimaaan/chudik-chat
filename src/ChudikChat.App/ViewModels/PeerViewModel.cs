@@ -26,6 +26,11 @@ public partial class PeerViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsOnline { get; set; } = true;
 
+    /// <summary>Картинка учётной записи собеседника. null — показываем кружок с буквой.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasAvatar))]
+    public partial ImageSource? Avatar { get; set; }
+
     public required PeerId Id { get; init; }
 
     public ObservableCollection<MessageViewModel> Messages { get; } = [];
@@ -34,6 +39,14 @@ public partial class PeerViewModel : ObservableObject
 
     public bool HasUnread => UnreadCount > 0;
 
+    public bool HasAvatar => Avatar is not null;
+
+    /// <summary>
+    /// Отпечаток показываемой сейчас картинки. Не наблюдаемое: на экране его нет,
+    /// он нужен только чтобы понять, изменилось ли что-нибудь.
+    /// </summary>
+    private string? _avatarTag;
+
     public string Initials
     {
         get
@@ -41,6 +54,27 @@ public partial class PeerViewModel : ObservableObject
             var trimmed = DisplayName.Trim();
             return trimmed.Length == 0 ? "?" : trimmed[..1].ToUpperInvariant();
         }
+    }
+
+    /// <summary>
+    /// Обновляет картинку, только если сменился отпечаток.
+    /// </summary>
+    /// <remarks>
+    /// Объявления приходят каждые четыре секунды, и новый ImageSource на каждое означал бы,
+    /// что CollectionView заново загружает картинку в каждой строке — это видно глазом
+    /// как мигание, и тем сильнее, чем длиннее список.
+    ///
+    /// Фабрика, а не готовый поток: StreamImageSource зовёт её заново при каждой загрузке —
+    /// при переиспользовании строки, при смене темы, при возврате из фона. Один поток
+    /// к тому моменту уже закрыт, и картинка пропала бы при первой же прокрутке.
+    /// </remarks>
+    public void ApplyAvatar(AvatarImage? image)
+    {
+        if (image?.Tag == _avatarTag)
+            return;
+
+        _avatarTag = image?.Tag;
+        Avatar = image is null ? null : ImageSource.FromStream(image.OpenRead);
     }
 
     public void Add(MessageViewModel message)

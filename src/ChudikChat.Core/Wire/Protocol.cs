@@ -34,6 +34,8 @@ public static class ProtocolConstants
 [JsonDerivedType(typeof(TransferDecisionFrame), "decision")]
 [JsonDerivedType(typeof(TransferEntryFrame), "entry")]
 [JsonDerivedType(typeof(TransferEndFrame), "end")]
+[JsonDerivedType(typeof(AvatarRequestFrame), "avreq")]
+[JsonDerivedType(typeof(AvatarFrame), "av")]
 public abstract record WireFrame
 {
     public int Version { get; init; } = ProtocolConstants.Version;
@@ -50,6 +52,33 @@ public sealed record IdentifyFrame : WireFrame
 
     /// <summary>Порт, на котором звонящий сам принимает входящие.</summary>
     public required int ListenPort { get; init; }
+
+    /// <summary>
+    /// Отпечаток картинки учётной записи. null — картинки нет или собеседник старой сборки.
+    /// </summary>
+    /// <remarks>
+    /// Здесь едет только отпечаток. Сами байты весят десятки килобайт, а представление
+    /// отправляется в каждом соединении — то есть в каждом сообщении и в каждой передаче
+    /// файлов. За байтами ходят отдельно и один раз на отпечаток.
+    /// </remarks>
+    public string? AvatarTag { get; init; }
+}
+
+/// <summary>Просьба отдать картинку с таким отпечатком.</summary>
+public sealed record AvatarRequestFrame : WireFrame
+{
+    public required string Tag { get; init; }
+}
+
+/// <summary>
+/// Картинка целиком. Поля формата нет намеренно: формат виден из сигнатуры, которую
+/// получатель всё равно обязан проверить — одно решение о доверии вместо двух.
+/// </summary>
+public sealed record AvatarFrame : WireFrame
+{
+    public required string Tag { get; init; }
+
+    public required byte[] Bytes { get; init; }
 }
 
 public sealed record TextFrame : WireFrame

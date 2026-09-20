@@ -25,6 +25,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     public partial string MyName { get; set; } = string.Empty;
 
+    /// <summary>Своя картинка учётной записи. null — в шапке её просто нет.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMyAvatar))]
+    public partial ImageSource? MyAvatar { get; set; }
+
     [ObservableProperty]
     public partial string Status { get; set; } = "запускаюсь…";
 
@@ -51,6 +56,8 @@ public partial class MainViewModel : ObservableObject
 
     public bool HasSelection => SelectedPeer is not null;
 
+    public bool HasMyAvatar => MyAvatar is not null;
+
     public bool CanSendFolders => PlatformEnvironment.CanSendFolders;
 
     public async Task InitializeAsync()
@@ -59,6 +66,35 @@ public partial class MainViewModel : ObservableObject
 
         MyName = Engine.LocalDisplayName;
         Status = $"слушаю порт {Engine.ListenPort}";
+
+        // Намеренно без await: картинка не должна задерживать появление окна.
+        // Соседи узнают о ней со следующего объявления, то есть через несколько секунд.
+        _ = LoadMyAvatarAsync();
+    }
+
+    /// <summary>
+    /// Забирает картинку учётной записи и отдаёт её движку.
+    /// </summary>
+    /// <remarks>
+    /// Годность решает ядро: оно же считает отпечаток, который поедет в сеть, и оно же
+    /// проверяет чужие картинки — проверка должна быть одна на всех, иначе головы
+    /// разойдутся в том, что считать картинкой.
+    /// </remarks>
+    private async Task LoadMyAvatarAsync()
+    {
+        try
+        {
+            var bytes = await _session.LocalAvatarAsync().ConfigureAwait(false);
+            if (bytes is null || !Avatars.TryCreate(bytes, out var avatar))
+                return;
+
+            Engine.LocalAvatar = avatar;
+            OnUi(() => MyAvatar = ImageSource.FromStream(avatar.OpenRead));
+        }
+        catch (Exception)
+        {
+            // Аватар — украшение. Ронять из-за него запуск не за что.
+        }
     }
 
     // ─── События движка ──────────────────────────────────────────────────────
@@ -70,6 +106,7 @@ public partial class MainViewModel : ObservableObject
         peer.DisplayName = snapshot.DisplayName;
         peer.Address = snapshot.PrimaryEndpoint?.ToString() ?? string.Empty;
         peer.IsOnline = true;
+        peer.ApplyAvatar(snapshot.Avatar);
 
         if (isNew && Peers.Count == 1)
             SelectedPeer ??= peer;

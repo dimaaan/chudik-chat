@@ -141,6 +141,105 @@ public class FrameCodecTests
             async () => await FrameCodec.WriteAsync(stream, frame, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Avatar_survives_round_trip()
+    {
+        var sent = new AvatarFrame
+        {
+            Tag = new string('a', Avatars.TagLength),
+            Bytes = Png(1024),
+        };
+
+        var received = Assert.IsType<AvatarFrame>(await RoundTripAsync(sent));
+
+        Assert.Equal(sent.Tag, received.Tag);
+        Assert.Equal(sent.Bytes, received.Bytes);
+    }
+
+    /// <summary>
+    /// Потолок картинки и потолок кадра живут в разных файлах. Этот тест — единственное,
+    /// что не даёт им разъехаться: base64 раздувает байты на треть.
+    /// </summary>
+    [Fact]
+    public void Avatar_at_the_cap_fits_a_frame()
+    {
+        Assert.True(Avatars.MaxBytes * 4 / 3 + 4096 < ProtocolConstants.MaxFrameBytes);
+    }
+
+    [Fact]
+    public async Task Avatar_over_the_frame_cap_is_not_written()
+    {
+        var frame = new AvatarFrame
+        {
+            Tag = new string('a', Avatars.TagLength),
+            Bytes = new byte[ProtocolConstants.MaxFrameBytes],
+        };
+
+        using var stream = new MemoryStream();
+
+        await Assert.ThrowsAsync<ProtocolException>(
+            async () => await FrameCodec.WriteAsync(stream, frame, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// Представление от старой сборки: поля отпечатка в нём нет вовсе.
+    /// </summary>
+    [Fact]
+    public async Task Identify_without_an_avatar_tag_parses()
+    {
+        var received = Assert.IsType<IdentifyFrame>(await ReadHandwrittenAsync(
+            $$"""{"t":"id","version":1,"peerId":"{{Guid.NewGuid():N}}","displayName":"Даша","listenPort":51234}"""));
+
+        Assert.Null(received.AvatarTag);
+    }
+
+    /// <summary>
+    /// Кадр от БОЛЕЕ НОВОЙ сборки с полем, которого мы не знаем. Совместимость вперёд
+    /// держится на умолчании System.Text.Json, и проверить это надо, а не предположить.
+    /// </summary>
+    [Fact]
+    public async Task Identify_with_an_unknown_field_parses()
+    {
+        var received = Assert.IsType<IdentifyFrame>(await ReadHandwrittenAsync(
+            $$$"""
+            {"t":"id","version":1,"peerId":"{{{Guid.NewGuid():N}}}","displayName":"Даша",
+             "listenPort":51234,"чегоТоНовое":{"вложенное":[1,2,3]}}
+            """));
+
+        Assert.Equal(51234, received.ListenPort);
+    }
+
+    /// <summary>
+    /// Кадр незнакомого вида — так выглядит запрос картинки, пришедший в старую сборку.
+    /// Он обязан разворачиваться в ProtocolException, а не в что попало: иначе причина
+    /// теряется по дороге, а соединение всё равно рвётся.
+    /// </summary>
+    [Fact]
+    public async Task Unknown_frame_kind_is_reported_as_a_protocol_error()
+    {
+        await Assert.ThrowsAsync<ProtocolException>(
+            async () => await ReadHandwrittenAsync("""{"t":"нетакогокадра","version":1}"""));
+    }
+
+    private static async Task<WireFrame?> ReadHandwrittenAsync(string json)
+    {
+        var payload = Encoding.UTF8.GetBytes(json);
+        var buffer = new byte[4 + payload.Length];
+        BinaryPrimitives.WriteInt32BigEndian(buffer, payload.Length);
+        payload.CopyTo(buffer, 4);
+
+        using var stream = new MemoryStream(buffer);
+        return await FrameCodec.ReadAsync(stream, CancellationToken.None);
+    }
+
+    private static byte[] Png(int length)
+    {
+        var bytes = new byte[length];
+        ReadOnlySpan<byte> signature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        signature.CopyTo(bytes);
+        return bytes;
+    }
+
     private static byte[] Header(int length)
     {
         var header = new byte[4];

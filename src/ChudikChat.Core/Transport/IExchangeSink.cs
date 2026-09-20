@@ -11,7 +11,7 @@ namespace ChudikChat.Core.Transport;
 public interface IExchangeSink
 {
     /// <summary>Собеседник представился. Адрес берётся из сокета, а не из кадра.</summary>
-    void OnIdentified(PeerId peer, string displayName, IPEndPoint remote, int listenPort);
+    void OnIdentified(PeerId peer, string displayName, IPEndPoint remote, int listenPort, string? avatarTag);
 
     void OnText(PeerId peer, Guid messageId, DateTimeOffset sentAt, string text);
 

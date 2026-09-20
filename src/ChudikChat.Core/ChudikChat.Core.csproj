@@ -6,4 +6,12 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!--
+      Состояние движка принадлежит циклу событий, и наружу оно не выставляется.
+      Тестам всё же нужно спросить его о себе — отсюда internal-доступ.
+    -->
+    <InternalsVisibleTo Include="ChudikChat.Core.Tests" />
+  </ItemGroup>
+
 </Project>

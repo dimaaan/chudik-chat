@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using ChudikChat.Core.Model;
 using ChudikChat.Core.Wire;
 
 namespace ChudikChat.Core.Transport;
@@ -40,6 +41,8 @@ public static class OutboundExchange
     public static readonly TimeSpan ConnectTimeout = TimeSpan.FromMilliseconds(1500);
     public static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan TextTimeout = TimeSpan.FromSeconds(20);
+
+    public static readonly TimeSpan AvatarTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// Соединяется и обменивается представлениями. Сроки здесь короткие и относятся
@@ -120,6 +123,75 @@ public static class OutboundExchange
 
             default:
                 throw new ProtocolException($"вместо подтверждения пришёл {reply.GetType().Name}");
+        }
+    }
+
+    /// <summary>
+    /// Забирает картинку с известным отпечатком отдельным коротким соединением.
+    /// </summary>
+    /// <remarks>
+    /// Отдельным — потому что представление уходит в каждом соединении, а картинка весит
+    /// десятки килобайт: вези её представление, и она пересылалась бы заново в каждом
+    /// сообщении и в каждой передаче файлов.
+    /// </remarks>
+    public static async Task<AvatarImage> FetchAvatarAsync(
+        IPEndPoint target,
+        IdentifyFrame localIdentity,
+        PeerId expected,
+        string tag,
+        CancellationToken ct)
+    {
+        await using var connection = await ConnectAsync(target, localIdentity, ct).ConfigureAwait(false);
+
+        // Та же проверка, что и перед передачей файлов: по адресу мог оказаться другой пир.
+        if (connection.Remote.PeerId != expected)
+            throw new ProtocolException($"по адресу {target} оказался другой пир");
+
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        deadline.CancelAfter(AvatarTimeout);
+
+        await FrameCodec.WriteAsync(connection.Stream, new AvatarRequestFrame { Tag = tag }, deadline.Token)
+            .ConfigureAwait(false);
+
+        return await ReadAvatarAsync(connection.Stream, tag, deadline.Token).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Читает и проверяет ответ на запрос картинки. Вынесено из
+    /// <see cref="FetchAvatarAsync"/> ради тестов: враждебные ответы проверяются
+    /// над обычным потоком, без сокета и без второго движка.
+    /// </summary>
+    /// <remarks>
+    /// Присланные байты перехешируются и сверяются с запрошенным отпечатком. Без этого
+    /// пир, у которого мы спросили картинку A, отдавал бы что угодно — и отравил бы кэш,
+    /// из которого картинку берут все остальные пиры с тем же отпечатком.
+    /// </remarks>
+    internal static async Task<AvatarImage> ReadAvatarAsync(Stream stream, string tag, CancellationToken ct)
+    {
+        var reply = await FrameCodec.ReadAsync(stream, ct).ConfigureAwait(false);
+
+        switch (reply)
+        {
+            case AvatarFrame avatar when string.Equals(avatar.Tag, tag, StringComparison.Ordinal):
+                if (!Avatars.TryCreate(avatar.Bytes, out var image))
+                    throw new ProtocolException("присланное не похоже на картинку");
+
+                if (!string.Equals(image.Tag, tag, StringComparison.Ordinal))
+                    throw new ProtocolException("картинка не соответствует отпечатку");
+
+                return image;
+
+            case AvatarFrame avatar:
+                throw new ProtocolException($"пришла картинка с чужим отпечатком {avatar.Tag}");
+
+            case ErrorFrame error:
+                throw new ProtocolException($"собеседник отказал: {error.Reason}");
+
+            case null:
+                throw new ProtocolException("собеседник закрыл соединение без картинки");
+
+            default:
+                throw new ProtocolException($"вместо картинки пришёл {reply.GetType().Name}");
         }
     }
 

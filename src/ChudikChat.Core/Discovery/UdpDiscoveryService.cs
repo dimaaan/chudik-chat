@@ -433,7 +433,8 @@ public sealed class UdpDiscoveryService : IDisposable
             source.Address,
             datagram.ListenPort,
             interfaceIndex,
-            datagram.Kind == DiscoveryKind.Bye));
+            datagram.Kind == DiscoveryKind.Bye,
+            Avatars.SanitizeTag(datagram.AvatarTag)));
 
         if (datagram.Kind == DiscoveryKind.Hello)
             _ = ReplyAsync(source, ct);
@@ -478,6 +479,7 @@ public sealed class UdpDiscoveryService : IDisposable
             PeerId = me.Peer,
             DisplayName = me.DisplayName,
             ListenPort = me.ListenPort,
+            AvatarTag = me.AvatarTag,
         };
 
         return JsonSerializer.SerializeToUtf8Bytes(datagram, typeof(DiscoveryDatagram), DiscoveryJsonContext.Default);

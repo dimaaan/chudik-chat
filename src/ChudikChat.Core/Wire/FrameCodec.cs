@@ -70,7 +70,10 @@ public static class FrameCodec
         {
             frame = JsonSerializer.Deserialize(utf8, typeof(WireFrame), WireJsonContext.Default) as WireFrame;
         }
-        catch (JsonException e)
+        // NotSupportedException — это неизвестный дискриминатор "t": так выглядит кадр
+        // из более новой сборки. Без этой ветки он вылетел бы мимо ProtocolException
+        // и потерял причину по дороге.
+        catch (Exception e) when (e is JsonException or NotSupportedException)
         {
             throw new ProtocolException("кадр не разбирается как JSON протокола", e);
         }
