@@ -187,14 +187,18 @@ public sealed class UdpDiscoveryService : IDisposable
         var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
 
         // ReuseAddress обязательно до Bind: иначе второй экземпляр на машине не стартует.
+        //
+        // SO_REUSEPORT здесь не ставится, и это проверено, а не забыто. Опасение было
+        // такое: на BSD-ядрах без него второй экземпляр не уживается с первым. На деле
+        // сырое значение 0x0200 через управляемый SetSocketOption не проходит вовсе —
+        // .NET отвечает OperationNotSupported, то есть ветка никогда и не работала,
+        // только писала пугающую строку в диагностику при каждом запуске на маке.
+        //
+        // А нужды в ней нет: два процесса на macOS 26, привязанные к одному порту
+        // с одним лишь ReuseAddress, получили все датаграммы до единой — оба.
+        // Понадобится всё-таки SO_REUSEPORT — это P/Invoke setsockopt, а не каст
+        // к SocketOptionName.
         socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-
-        if (OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst())
-        {
-            // SO_REUSEPORT: на BSD-ядрах без него второй экземпляр не уживается с первым.
-            const SocketOptionName reusePort = (SocketOptionName)0x0200;
-            TrySetOption(socket, SocketOptionLevel.Socket, reusePort, "SO_REUSEPORT");
-        }
 
         // IP_PKTINFO: даёт индекс интерфейса, на который пришла датаграмма.
         // Без него нельзя отличить адрес, достижимый с нашей стороны, от чужого.
