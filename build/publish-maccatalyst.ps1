@@ -106,27 +106,47 @@ if ($archs.Count -ne 1 -or $archs[0] -ne 'arm64') {
 }
 Write-Host "  $($exe[0].Name): $($archs -join ', ')"
 
-Step 'Подпись ad-hoc'
+Step 'Проверка подписи'
 
-# --deep Apple объявила устаревшей для подписи, поэтому вложенные библиотеки
-# подписываются явно, а бандл — последним. Порядок важен: подпись бандла
-# накрывает уже подписанное содержимое.
-$dylibs = @(Get-ChildItem $app.FullName -Recurse -File -Filter '*.dylib' -ErrorAction SilentlyContinue)
-Write-Host "  вложенных библиотек: $($dylibs.Count)"
-
-foreach ($lib in $dylibs) {
-    codesign --force --sign - --timestamp=none $lib.FullName
-    if ($LASTEXITCODE -ne 0) { throw "не удалось подписать $($lib.Name) (код $LASTEXITCODE)" }
-}
-
-codesign --force --sign - --timestamp=none $app.FullName
-if ($LASTEXITCODE -ne 0) { throw "не удалось подписать бандл (код $LASTEXITCODE)" }
-
-# --deep для ПРОВЕРКИ не устарела, в отличие от подписи: здесь она и нужна,
-# чтобы убедиться, что подписано всё содержимое, а не только внешняя оболочка.
+# Своей подписи здесь нет и быть не должно. Бандл подписывает сам
+# dotnet publish — ad-hoc и вместе с правами доступа, которые выдаёт
+# сборка MAUI: allow-jit, клиент и сервер сети, выбор файлов.
+#
+# Проход `codesign --force --sign -` поверх этого права СТИРАЕТ: режима
+# «сохранить то, что было» у codesign нет, права надо передавать заново
+# ключом --entitlements. Раньше этот проход здесь стоял, и приезжало вот
+# что: без allow-jit среда исполнения .NET не может выделить исполняемую
+# память, и приложение умирает раньше, чем dyld загрузит хоть одну
+# библиотеку. Значок прыгает в доке, окна нет, отчёта о падении нет,
+# в журнале пусто. Ровно так вёл себя первый образ, который CI довёл
+# до конца, — 2.0.7.
+#
+# --deep для ПРОВЕРКИ не устарела, в отличие от подписи: она убеждается,
+# что подписано всё содержимое, а не только внешняя оболочка.
 codesign --verify --deep --strict $app.FullName
 if ($LASTEXITCODE -ne 0) { throw "подпись не прошла проверку (код $LASTEXITCODE)" }
-Write-Host '  подпись на месте и проходит проверку'
+
+# Права проверяются отдельно и поимённо. Без этой проверки поломка беззвучна:
+# подпись остаётся целой, --verify выше проходит, сборка зеленеет — и всё
+# это ровно до того момента, когда образ скачает живой человек.
+$entFile = [IO.Path]::Combine([IO.Path]::GetTempPath(), 'chudik-entitlements.plist')
+Remove-Item $entFile -ErrorAction SilentlyContinue
+codesign -d --entitlements $entFile --xml $app.FullName 2>$null
+
+if (-not (Test-Path $entFile)) { throw 'в подписи нет прав доступа вовсе — приложение не запустится' }
+$entitlements = Get-Content $entFile -Raw
+
+foreach ($required in @(
+    'com.apple.security.cs.allow-jit',
+    'com.apple.security.network.client',
+    'com.apple.security.network.server'
+)) {
+    if ($entitlements -notlike "*$required*") {
+        throw "в подписи нет права $required — приложение не запустится"
+    }
+}
+
+Write-Host '  подпись ad-hoc на месте, права тоже'
 
 Step 'Сборка образа'
 
