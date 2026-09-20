@@ -23,7 +23,18 @@
         </Style>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*" BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1B1D21}">
+    <!--
+        Нижняя кромка помечена All, и это единственное значение, при котором MAUI
+        поднимает содержимое над экранной клавиатурой: отступ считается по ней,
+        когда она есть, и по системной панели, когда её нет. Умолчание (Container)
+        про клавиатуру не знает, а SoftInput потерял бы отступ под навигационной
+        панелью. Остальные кромки оставлены Default — ведут себя как прежде.
+        Работает в паре с WindowSoftInputModeAdjust.Resize в App.
+    -->
+    <Grid
+        RowDefinitions="Auto,*"
+        SafeAreaEdges="Default, Default, Default, All"
+        BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1B1D21}">
 
         <!--  Шапка  -->
         <Grid

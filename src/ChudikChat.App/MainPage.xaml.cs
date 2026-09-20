@@ -23,6 +23,10 @@ public partial class MainPage : ContentPage
         BindingContext = model;
         model.PropertyChanged += OnModelPropertyChanged;
 
+        // Клавиатура ужимает список, а список при уменьшении держится за верхний
+        // край — последние сообщения уходят вниз за границу видимой части.
+        MessagesView.SizeChanged += (_, _) => ScrollToLastMessage();
+
         // Нативный обработчик доступен только после того, как создан платформенный вид.
         Loaded += (_, _) => FileDrop.Attach(this, OnFilesDropped);
     }
