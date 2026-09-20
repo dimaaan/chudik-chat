@@ -807,7 +807,13 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
             _peers[seen.Peer] = peer;
         }
 
-        peer.DisplayName = seen.DisplayName;
+        // Санация здесь, на входе в таблицу, а не у каждого источника события.
+        // Источников три — датаграмма обнаружения, входящее представление и
+        // представление в ответ на нашу отправку, — и третий про неё забыл: имя
+        // собеседника, к которому мы подключились сами, попадало в список как есть.
+        // Повторная санация уже обезвреженного имени ничего не меняет, а забыть
+        // её в следующем источнике теперь негде.
+        peer.DisplayName = DeviceNames.Sanitize(seen.DisplayName);
         peer.LastSeenUtc = now;
         peer.SetAvatarTag(seen.AvatarTag);
 

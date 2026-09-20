@@ -1,6 +1,8 @@
 using System.Net;
+using System.Net.Sockets;
 using ChudikChat.Core;
 using ChudikChat.Core.Model;
+using ChudikChat.Core.Wire;
 
 namespace ChudikChat.Core.Tests;
 
@@ -125,6 +127,29 @@ public class ChatEngineTests
         Assert.Equal(MessageState.Failed, sent.State);
     }
 
+    /// <summary>
+    /// Имя приходит по сети и с той стороны, куда позвонили мы сами. Санация нужна
+    /// и здесь: без неё собеседник вставляет в имя перевод строки или bidi-подмену
+    /// и рисует в списке участников чужую строку.
+    /// </summary>
+    [Theory]
+    [InlineData("Вася\nПетя", "ВасяПетя")]
+    [InlineData("‮gnp.exe", "gnp.exe")]
+    [InlineData("   ", DeviceNames.Fallback)]
+    public async Task A_name_from_an_outbound_connection_is_sanitized(string sent, string shown)
+    {
+        await using var liar = new NastyPeer(sent);
+        await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
+
+        var appeared = NextPeer(alice);
+        await alice.StartAsync();
+
+        var message = await alice.SendTextToAsync(Loopback(liar.Port), "привет");
+        Assert.Equal(MessageState.Delivered, message.State);
+
+        Assert.Equal(shown, (await appeared.WaitAsync(Patience)).DisplayName);
+    }
+
     private static IPEndPoint Loopback(int port) => new(IPAddress.Loopback, port);
 
     private static Task<ChatMessage> NextMessage(ChatEngine engine)
@@ -139,5 +164,92 @@ public class ChatEngineTests
         var source = new TaskCompletionSource<PeerSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
         engine.PeerAppeared += peer => source.TrySetResult(peer);
         return source.Task;
+    }
+
+    /// <summary>
+    /// Собеседник, который представляется именем, какое сам захотел. Настоящий движок
+    /// так не умеет: его LocalDisplayName обезвреживает имя в сеттере — потому и нужен
+    /// самодельный.
+    /// </summary>
+    private sealed class NastyPeer : IAsyncDisposable
+    {
+        private readonly Socket _listener;
+        private readonly CancellationTokenSource _lifetime = new();
+        private readonly Task _loop;
+        private readonly string _name;
+
+        public NastyPeer(string name)
+        {
+            _name = name;
+
+            _listener = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            _listener.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+            _listener.Listen(4);
+
+            Port = ((IPEndPoint)_listener.LocalEndPoint!).Port;
+            _loop = Task.Run(RunAsync);
+        }
+
+        public int Port { get; }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _lifetime.CancelAsync();
+            _listener.Dispose();
+
+            try
+            {
+                await _loop;
+            }
+            catch (Exception)
+            {
+                // Остановка — не ошибка.
+            }
+
+            _lifetime.Dispose();
+        }
+
+        private async Task RunAsync()
+        {
+            while (!_lifetime.IsCancellationRequested)
+            {
+                Socket socket;
+                try
+                {
+                    socket = await _listener.AcceptAsync(_lifetime.Token);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+
+                await ServeAsync(socket);
+            }
+        }
+
+        private async Task ServeAsync(Socket socket)
+        {
+            try
+            {
+                using (socket)
+                await using (var stream = new NetworkStream(socket, ownsSocket: false))
+                {
+                    if (await FrameCodec.ReadAsync(stream, _lifetime.Token) is not IdentifyFrame)
+                        return;
+
+                    await FrameCodec.WriteAsync(
+                        stream,
+                        new IdentifyFrame { PeerId = PeerId.New(), DisplayName = _name, ListenPort = Port },
+                        _lifetime.Token);
+
+                    if (await FrameCodec.ReadAsync(stream, _lifetime.Token) is TextFrame text)
+                        await FrameCodec.WriteAsync(stream, new AckFrame { MessageId = text.MessageId }, _lifetime.Token);
+                }
+            }
+            catch (Exception)
+            {
+                // Обрыв на этой стороне тесту не важен.
+            }
+        }
     }
 }
