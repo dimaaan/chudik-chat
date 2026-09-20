@@ -14,16 +14,25 @@ public partial class PeerViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Initials))]
+    [NotifyPropertyChangedFor(nameof(OfflineNotice))]
     public partial string DisplayName { get; set; } = DeviceNames.Fallback;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
     public partial string Address { get; set; } = string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUnread))]
     public partial int UnreadCount { get; set; }
 
+    /// <summary>
+    /// Собеседник в сети. Гаснет, когда движок сообщил об уходе, — но строка
+    /// остаётся, если с собеседником есть переписка.
+    /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOffline))]
+    [NotifyPropertyChangedFor(nameof(StatusText))]
+    [NotifyPropertyChangedFor(nameof(OfflineNotice))]
     public partial bool IsOnline { get; set; } = true;
 
     /// <summary>Картинка учётной записи собеседника. null — показываем кружок с буквой.</summary>
@@ -45,7 +54,20 @@ public partial class PeerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsAndroid))]
     public partial PeerPlatform Platform { get; set; } = PeerPlatform.Unknown;
 
-    public required PeerId Id { get; init; }
+    /// <summary>
+    /// Кто это в терминах движка.
+    /// </summary>
+    /// <remarks>
+    /// Не <c>init</c>, и это намеренно. Идентификатор пира живёт ровно столько,
+    /// сколько его процесс: закрыл собеседник Чудика и открыл заново — с точки
+    /// зрения протокола это другой пир. А для человека — тот же, и строку
+    /// с перепиской он ожидает увидеть на прежнем месте. Поэтому строка
+    /// переживает идентификатор и при возвращении получает новый.
+    ///
+    /// Не наблюдаемое: на экране его нет, а меняется он под присмотром
+    /// <c>MainViewModel</c>, который заодно правит и свою таблицу.
+    /// </remarks>
+    public required PeerId Id { get; set; }
 
     public ObservableCollection<MessageViewModel> Messages { get; } = [];
 
@@ -54,6 +76,25 @@ public partial class PeerViewModel : ObservableObject
     public bool HasUnread => UnreadCount > 0;
 
     public bool HasAvatar => Avatar is not null;
+
+    public bool IsOffline => !IsOnline;
+
+    /// <summary>
+    /// Вторая строка в списке: адрес, пока собеседник в сети, и приговор, когда ушёл.
+    /// </summary>
+    /// <remarks>
+    /// Одна подпись, а не две переключаемых: у неё уже настроено усечение хвоста,
+    /// и второй пришлось бы настраивать так же — ради текста, который никогда
+    /// не показывается вместе с первым.
+    /// </remarks>
+    public string StatusText => IsOnline ? Address : "не в сети";
+
+    /// <summary>Надпись вместо поля ввода у ушедшего собеседника.</summary>
+    /// <remarks>
+    /// С именем, потому что в области переписки его больше негде прочитать:
+    /// шапки у неё на настольной раскладке нет вовсе.
+    /// </remarks>
+    public string OfflineNotice => $"{DisplayName} не в сети — сообщение не дойдёт";
 
     // Три отдельных признака, а не один преобразователь: в шаблоне строки лежат
     // три фигуры внахлёст, и каждой нужна своя привязка к видимости.

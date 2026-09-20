@@ -107,7 +107,7 @@
                 <ColumnDefinition x:Name="ChatColumn" Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  Кто в сети  -->
+            <!--  Собеседники  -->
             <Grid
                 x:Name="PeersPane"
                 Grid.Column="0"
@@ -145,6 +145,37 @@
                                 Поле принадлежит элементу и исчезает вместе с ним.
                             -->
                             <Grid Padding="12,10" ColumnDefinitions="36,Auto,*,Auto">
+
+                                <!--
+                                    Ушедший гаснет целиком, одной прозрачностью на всю
+                                    строку. Красить подписи по отдельности пришлось бы
+                                    в четырёх местах — и мимо аватарки с иконкой системы,
+                                    то есть как раз мимо того, что в строке заметнее всего.
+
+                                    Прозрачность строки не трогает подсветку выделения:
+                                    её список рисует под ячейкой, а не внутри неё. Выбранный
+                                    ушедший собеседник остаётся видно выбранным.
+
+                                    Цена известна и принята: прозрачность перемножается,
+                                    и значку непрочитанных полной силы изнутри уже не
+                                    вернуть. Сам значок остаётся на месте и читается
+                                    цветом и формой пятна. Понадобится точная цифра —
+                                    Opacity переезжает с корня на три части содержимого,
+                                    и значок остаётся нетронутым.
+
+                                    Больше половины, а не меньше: ниже примерно половины
+                                    фотография растворяется в панели и строка перестаёт
+                                    выглядеть строкой.
+                                -->
+                                <Grid.Triggers>
+                                    <DataTrigger
+                                        TargetType="Grid"
+                                        Binding="{Binding IsOnline}"
+                                        Value="False">
+                                        <Setter Property="Opacity" Value="0.55" />
+                                    </DataTrigger>
+                                </Grid.Triggers>
+
                                 <Grid Grid.Column="0" HeightRequest="36" WidthRequest="36">
 
                                     <!--
@@ -187,6 +218,44 @@
                                                 RadiusY="18" />
                                         </Image.Clip>
                                     </Image>
+
+                                    <!--
+                                        Точка присутствия — третья фигура в той же клетке,
+                                        поверх аватарки. Своей колонки ей не нужно: она
+                                        сидит в углу тех же тридцати шести точек, и строка
+                                        от неё не разъезжается.
+
+                                        Объявлена последней, и переставить её нельзя:
+                                        в клетке порядок объявления — он же порядок
+                                        рисования, и стой она до картинки, картинка
+                                        накрыла бы её собой.
+
+                                        Прижата к правому нижнему углу без полей. Кружок
+                                        аватарки вписан в квадрат, поэтому угол квадрата
+                                        свободен, а центр точки при таком выравнивании
+                                        приходится чуть внутри окружности — точка садится
+                                        на ободок, а не висит рядом.
+
+                                        Обводка цветом панели обязательна. Без неё зелёное
+                                        теряется на тёмной фотографии — а картинка учётной
+                                        записи как раз чаще всего тёмная по краям.
+
+                                        Зелёный не тот, которым нарисован Android, и не
+                                        только из-за смысла. Фирменный мятный даёт на
+                                        светлой панели 1,7:1 — самый важный признак
+                                        в списке оказался бы самым бледным пятном в нём.
+                                        Здесь глубокий сигнальный: 3,3:1 на светлой теме
+                                        и 8:1 на тёмной.
+                                    -->
+                                    <Ellipse
+                                        HeightRequest="14"
+                                        WidthRequest="14"
+                                        HorizontalOptions="End"
+                                        VerticalOptions="End"
+                                        StrokeThickness="2"
+                                        IsVisible="{Binding IsOnline}"
+                                        Fill="{AppThemeBinding Light=#12A150, Dark=#2FD06F}"
+                                        Stroke="{AppThemeBinding Light=#FAFBFD, Dark=#1F2126}" />
                                 </Grid>
 
                                 <!--
@@ -249,11 +318,31 @@
                                         LineBreakMode="TailTruncation"
                                         Text="{Binding DisplayName}"
                                         TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                                    <!--
+                                        Прозрачность гашёной строки бьёт и по этой подписи,
+                                        а третичный серый под ней опускается до 1,7:1.
+                                        Цифры адреса такое пережили бы — их всё равно
+                                        никто не читает, — но здесь стоят слова, ради
+                                        которых всё и затевалось. Поэтому у ушедшего
+                                        подпись поднимается до основного цвета текста:
+                                        перемноженная с прозрачностью, она приходит
+                                        к весу обычной второстепенной подписи — громче
+                                        соседей не становится, но читается.
+                                    -->
                                     <Label
                                         FontSize="11"
                                         LineBreakMode="TailTruncation"
-                                        Text="{Binding Address}"
-                                        TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
+                                        Text="{Binding StatusText}"
+                                        TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}">
+                                        <Label.Triggers>
+                                            <DataTrigger
+                                                TargetType="Label"
+                                                Binding="{Binding IsOnline}"
+                                                Value="False">
+                                                <Setter Property="TextColor" Value="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                                            </DataTrigger>
+                                        </Label.Triggers>
+                                    </Label>
                                 </VerticalStackLayout>
 
                                 <Border
@@ -483,40 +572,79 @@
                 </CollectionView>
 
                 <!--  Ввод  -->
+                <!--
+                    Оболочка заведена ради проверки выбора, и обойтись без неё нельзя.
+                    Видимостью полосы ввода теперь распоряжается состояние выбранного
+                    собеседника, а это привязка через точку: пока никто не выбран,
+                    она не разрешается вовсе, и IsVisible остаётся в своём умолчании —
+                    истине. Надпись про отсутствие собеседника в сети мигала бы там,
+                    где собеседника нет вообще. Внешняя сетка знает только про выбор
+                    и гасит собой обе ветки разом.
+
+                    Фон поднят сюда же с полосы ввода: полоса внизу переписки одна
+                    и та же, меняется только её содержимое. Высота остаётся Auto,
+                    невидимое в измерении не участвует, и полоса садится по тому,
+                    что показано.
+                -->
                 <Grid
                     Grid.Row="2"
-                    Padding="12,8"
-                    ColumnDefinitions="Auto,Auto,*,Auto"
-                    ColumnSpacing="6"
                     IsVisible="{Binding HasSelection}"
                     BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
 
-                    <Button
-                        Grid.Column="0"
-                        Style="{StaticResource ToolButton}"
-                        Text="Файл"
-                        Command="{Binding PickFilesCommand}" />
+                    <Grid
+                        Padding="12,8"
+                        ColumnDefinitions="Auto,Auto,*,Auto"
+                        ColumnSpacing="6"
+                        IsVisible="{Binding SelectedPeer.IsOnline}">
 
-                    <Button
-                        Grid.Column="1"
-                        Style="{StaticResource ToolButton}"
-                        Text="Папка"
-                        IsVisible="{Binding CanSendFolders}"
-                        Command="{Binding PickFolderCommand}" />
+                        <Button
+                            Grid.Column="0"
+                            Style="{StaticResource ToolButton}"
+                            Text="Файл"
+                            Command="{Binding PickFilesCommand}" />
 
-                    <Entry
-                        Grid.Column="2"
-                        Placeholder="Сообщение"
-                        Text="{Binding Draft, Mode=TwoWay}"
-                        ReturnCommand="{Binding SendCommand}" />
+                        <Button
+                            Grid.Column="1"
+                            Style="{StaticResource ToolButton}"
+                            Text="Папка"
+                            IsVisible="{Binding CanSendFolders}"
+                            Command="{Binding PickFolderCommand}" />
 
-                    <Button
-                        Grid.Column="3"
-                        Padding="16,6"
-                        Text="Отправить"
-                        TextColor="White"
-                        BackgroundColor="{StaticResource Accent}"
-                        Command="{Binding SendCommand}" />
+                        <Entry
+                            Grid.Column="2"
+                            Placeholder="Сообщение"
+                            Text="{Binding Draft, Mode=TwoWay}"
+                            ReturnCommand="{Binding SendCommand}" />
+
+                        <Button
+                            Grid.Column="3"
+                            Padding="16,6"
+                            Text="Отправить"
+                            TextColor="White"
+                            BackgroundColor="{StaticResource Accent}"
+                            Command="{Binding SendCommand}" />
+                    </Grid>
+
+                    <!--
+                        Вместо полосы ввода у ушедшего. Не запертое поле, а надпись:
+                        запертое поле обещает, что скоро отпустят, а отпустят только
+                        с возвращением собеседника, и ждать этого можно весь вечер.
+
+                        Набранное никуда не девается: поле скрыто, а не уничтожено,
+                        и Draft дожидается в нём возвращения собеседника.
+
+                        Перенос по словам, а не усечение хвоста: обрезать здесь
+                        пришлось бы ровно ту половину, ради которой надпись и написана.
+                    -->
+                    <Label
+                        Padding="12,16"
+                        FontSize="13"
+                        HorizontalTextAlignment="Center"
+                        VerticalOptions="Center"
+                        LineBreakMode="WordWrap"
+                        Text="{Binding SelectedPeer.OfflineNotice}"
+                        IsVisible="{Binding SelectedPeer.IsOffline}"
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
                 </Grid>
             </Grid>
         </Grid>

@@ -101,6 +101,9 @@ public partial class MainViewModel : ObservableObject
 
     private void ApplyPeer(PeerSnapshot snapshot, bool isNew)
     {
+        if (!_byId.ContainsKey(snapshot.Id))
+            Reclaim(snapshot);
+
         var peer = GetOrCreate(snapshot.Id);
 
         peer.DisplayName = snapshot.DisplayName;
@@ -114,19 +117,70 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Отдаёт вернувшемуся собеседнику его прежнюю погасшую строку.
+    /// </summary>
+    /// <remarks>
+    /// Идентификатор пира — GUID процесса, поэтому собеседник, закрывший Чудика
+    /// и открывший снова, приходит незнакомцем. Без этого в списке оказались бы
+    /// две строки с одним именем: серая с перепиской и живая пустая — ровно та
+    /// путаница, ради устранения которой список и научился различать присутствие.
+    ///
+    /// Живые строки не склеиваются никогда, и это не осторожность, а условие
+    /// работы: два экземпляра на одной машине — два законных пира, на чём держится
+    /// весь цикл отладки. Склеиться можно только с тем, кто уже ушёл.
+    ///
+    /// Безымянные не склеиваются тоже. Имени у них нет, и все они зовутся
+    /// одинаково — «Без имени»; по такому совпадению два разных телефона сошлись
+    /// бы в одного собеседника вместе с чужой перепиской.
+    ///
+    /// Совпадение по имени — это доверие имени, а его объявляет о себе сам пир.
+    /// Сосед, назвавшийся как ваш собеседник, займёт его строку. В сети без
+    /// шифрования он в любом случае появился бы в списке под этим именем;
+    /// разница лишь в том, что к строке прилагается прочитанное раньше.
+    /// </remarks>
+    private void Reclaim(PeerSnapshot snapshot)
+    {
+        if (snapshot.DisplayName == DeviceNames.Fallback)
+            return;
+
+        foreach (var candidate in Peers)
+        {
+            if (candidate.IsOnline || candidate.Platform != snapshot.Platform)
+                continue;
+
+            if (!string.Equals(candidate.DisplayName, snapshot.DisplayName, StringComparison.Ordinal))
+                continue;
+
+            _byId.Remove(candidate.Id);
+            candidate.Id = snapshot.Id;
+            _byId[snapshot.Id] = candidate;
+            return;
+        }
+    }
+
+    /// <summary>
     /// Ушедшего собеседника не выбрасываем, если с ним есть переписка: строка,
     /// исчезающая из-под курсора посреди чтения, раздражает сильнее, чем лишняя строка.
     /// </summary>
+    /// <remarks>
+    /// Прощание пира, успевшего вернуться, сюда доходит уже безвредным: строку
+    /// забрал новый идентификатор, и по старому ключу таблица ничего не находит.
+    /// </remarks>
     private void ApplyPeerGone(PeerId id)
     {
         if (!_byId.TryGetValue(id, out var peer))
             return;
 
+        // Признак гасим до всякого ветвления, в том числе у строки, которую сейчас
+        // выбросим. Из списка она уходит, но объект живёт: ссылку на него держит
+        // открытый диалог выбора файлов и начатое перетаскивание, и решают они
+        // по этому самому признаку. Оставь мы его гореть — файл ушёл бы пиру,
+        // которого движок уже забыл, а отчёт о передаче завёл бы в списке новую
+        // строку, зелёную навсегда: гасить её больше нечему, прощание уже прошло.
+        peer.IsOnline = false;
+
         if (peer.Messages.Count > 0 || peer.Transfers.Count > 0)
-        {
-            peer.IsOnline = false;
             return;
-        }
 
         _byId.Remove(id);
         Peers.Remove(peer);
@@ -203,7 +257,7 @@ public partial class MainViewModel : ObservableObject
         var peer = SelectedPeer;
         var text = Draft.Trim();
 
-        if (peer is null || text.Length == 0)
+        if (peer is null || !peer.IsOnline || text.Length == 0)
             return;
 
         Draft = string.Empty;
@@ -227,7 +281,7 @@ public partial class MainViewModel : ObservableObject
     private async Task PickFilesAsync()
     {
         var peer = SelectedPeer;
-        if (peer is null)
+        if (peer is null || !peer.IsOnline)
             return;
 
         IEnumerable<FileResult>? picked;
@@ -252,7 +306,7 @@ public partial class MainViewModel : ObservableObject
     private async Task PickFolderAsync()
     {
         var peer = SelectedPeer;
-        if (peer is null || !CanSendFolders)
+        if (peer is null || !peer.IsOnline || !CanSendFolders)
             return;
 
         try
@@ -270,8 +324,20 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Отправка файла или папки по готовому пути — сюда же приходит перетаскивание.</summary>
+    /// <remarks>
+    /// Проверка на присутствие стоит именно здесь, хотя зовущие её команды проверяют
+    /// то же самое сами. Сюда приходит перетаскивание из окна, минуя разметку и
+    /// команды вовсе, и без этой строки файл, бро́шенный на погасшего собеседника,
+    /// уходил бы в никуда молча.
+    /// </remarks>
     public async Task SendPathAsync(PeerViewModel peer, string path, bool isFolder)
     {
+        if (!peer.IsOnline)
+        {
+            OnUi(() => Status = $"{peer.DisplayName} не в сети — отправить нечем");
+            return;
+        }
+
         try
         {
             if (isFolder || Directory.Exists(path))
