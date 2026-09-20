@@ -35,6 +35,15 @@ public sealed class UdpDiscoveryService : IDisposable
     private readonly SemaphoreSlim _adapterSignal = new(0, 1);
     private readonly HashSet<int> _joined = [];
 
+    /// <summary>
+    /// Интерфейсы, про отказ которых уже сказано. Нужен отдельно от <see cref="_joined"/>:
+    /// туда неудачник не попадает, чтобы попытку можно было повторить на следующем
+    /// опросе, — а без этого списка каждая повторная попытка снова писала бы в
+    /// диагностику. На маке с поднятым VPN это значит одну и ту же строку про utun
+    /// каждые несколько секунд, и она затирает единственное, что там полезно.
+    /// </summary>
+    private readonly HashSet<int> _joinFailuresReported = [];
+
     private Socket? _rx;
     private Socket? _tx;
     private volatile IReadOnlyList<NetworkAdapter> _adapters = [];
@@ -254,13 +263,19 @@ public sealed class UdpDiscoveryService : IDisposable
                     SocketOptionLevel.IP,
                     SocketOptionName.AddMembership,
                     new MulticastOption(_group, adapter.InterfaceIndex));
+
+                // Получилось — значит про следующий отказ здесь снова стоит сказать.
+                _joinFailuresReported.Remove(adapter.InterfaceIndex);
             }
             catch (SocketException e)
             {
                 // Типично для VPN- и виртуальных адаптеров. Один отказ не должен
                 // мешать обнаружению на остальных интерфейсах.
                 _joined.Remove(adapter.InterfaceIndex);
-                _diagnostic($"{adapter.Name}: не удалось вступить в группу ({e.SocketErrorCode})");
+
+                // Повторять попытку — да, повторять жалобу — нет.
+                if (_joinFailuresReported.Add(adapter.InterfaceIndex))
+                    _diagnostic($"{adapter.Name}: не удалось вступить в группу ({e.SocketErrorCode})");
             }
         }
     }
