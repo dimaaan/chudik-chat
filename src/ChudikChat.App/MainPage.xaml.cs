@@ -2,6 +2,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using ChudikChat.App.Services;
 using ChudikChat.App.ViewModels;
+using CommunityToolkit.Maui.Core;
 
 namespace ChudikChat.App;
 
@@ -42,6 +43,23 @@ public partial class MainPage : ContentPage
         // Передачи идут по отдельным соединениям, поэтому запускаем их разом.
         foreach (var path in paths)
             _ = _model.SendPathAsync(peer, path, Directory.Exists(path));
+    }
+
+    /// <summary>
+    /// Долгое нажатие по пузырьку — копирование текста сообщения.
+    /// </summary>
+    /// <remarks>
+    /// Обработчик, а не команда в разметке, потому что поведение в MAUI наследуется
+    /// от BindableObject, а не от Element: собственного BindingContext у него нет,
+    /// {Binding .} обратилось бы в null, а {Binding Source={RelativeSource ...}}
+    /// бросает InvalidOperationException прямо при разборе разметки. Зато отправителем
+    /// события приходит сам элемент, к которому поведение прицеплено, — а у него
+    /// BindingContext как раз нужное сообщение.
+    /// </remarks>
+    private void OnMessageLongPressed(object? sender, LongPressCompletedEventArgs e)
+    {
+        if (sender is BindableObject { BindingContext: MessageViewModel message })
+            _model.CopyTextCommand.Execute(message);
     }
 
     protected override async void OnAppearing()

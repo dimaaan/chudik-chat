@@ -251,6 +251,49 @@
                                     StrokeShape="RoundRectangle 14"
                                     BackgroundColor="{AppThemeBinding Light=#EEF1F6, Dark=#2A2E35}">
 
+                                    <!--
+                                        Правый клик на Windows и macOS. На Android эта разметка
+                                        просто ничего не делает: MenuFlyoutHandler там не
+                                        зарегистрирован, а MapContextFlyout — пустой метод.
+                                        Поэтому ветка под платформу ей не нужна, нужен другой
+                                        жест — он ниже.
+                                    -->
+                                    <FlyoutBase.ContextFlyout>
+                                        <MenuFlyout>
+                                            <MenuFlyoutItem
+                                                Text="Копировать"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type vm:MainViewModel}}, Path=CopyTextCommand}"
+                                                CommandParameter="{Binding .}" />
+                                        </MenuFlyout>
+                                    </FlyoutBase.ContextFlyout>
+
+                                    <Border.Behaviors>
+                                        <!--
+                                            Долгое нажатие вместо правого клика на Android.
+
+                                            На настольных системах выключено. На Windows это
+                                            поведение помечает PointerPressed обработанным
+                                            и захватывает указатель для любой кнопки — то есть
+                                            способно съесть правый клик вместе с меню выше.
+                                            На macOS удержание левой кнопки копировало бы там,
+                                            где принят правый клик.
+
+                                            ShouldMakeChildrenInputTransparent обязателен:
+                                            по умолчанию True, и тогда поведение проставляет
+                                            InputTransparent детям Border — обеим подписям, —
+                                            после чего ссылки в тексте перестают нажиматься.
+
+                                            DisallowTouchThreshold намеренно не трогаем. Ноль
+                                            означает, что список свободно перехватывает движение
+                                            и прокручивается, а начатое долгое нажатие
+                                            отменяется само.
+                                        -->
+                                        <toolkit:TouchBehavior
+                                            IsEnabled="{OnPlatform Default=False, Android=True}"
+                                            ShouldMakeChildrenInputTransparent="False"
+                                            LongPressCompleted="OnMessageLongPressed" />
+                                    </Border.Behaviors>
+
                                     <Border.Triggers>
                                         <DataTrigger
                                             TargetType="Border"
@@ -267,6 +310,26 @@
                                             FontSize="14"
                                             FormattedText="{Binding Text, Converter={StaticResource MessageText}}"
                                             TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}">
+
+                                            <Label.Behaviors>
+                                                <!--
+                                                    Второе такое же поведение, теперь на самой
+                                                    подписи. У сообщения со ссылкой появляются
+                                                    распознаватели жестов, и её нативный вид
+                                                    забирает касание себе — до Border оно уже
+                                                    не доходит. Без этой копии долгое нажатие
+                                                    работало бы на тексте сообщений без ссылок
+                                                    и не работало на тексте сообщений с ними.
+
+                                                    За одно касание срабатывает то поведение,
+                                                    чей вид касание забрал. Даже сработай оба,
+                                                    в буфер лёг бы тот же самый текст.
+                                                -->
+                                                <toolkit:TouchBehavior
+                                                    IsEnabled="{OnPlatform Default=False, Android=True}"
+                                                    LongPressCompleted="OnMessageLongPressed" />
+                                            </Label.Behaviors>
+
                                             <Label.Triggers>
                                                 <DataTrigger
                                                     TargetType="Label"

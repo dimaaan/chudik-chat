@@ -368,6 +368,37 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Кладёт текст сообщения в буфер обмена целиком.
+    /// </summary>
+    /// <remarks>
+    /// Перевода в главный поток здесь нет намеренно. Буфер обмена у всех трёх систем —
+    /// главный поток и передний план: WinRT бросает RPC_E_WRONG_THREAD из чужого потока
+    /// и отказывает свёрнутому окну, UIKit и Android ведут себя недетерминированно.
+    /// Команда всегда приходит из нажатия, то есть уже оттуда, откуда надо. Звать её
+    /// из фоновых задач нельзя.
+    ///
+    /// Android 13 и новее показывает своё «Скопировано» сам, и строка состояния его
+    /// дублирует. Убирать её из-за этого не за что: на Windows и macOS система не
+    /// показывает ничего, а без отклика непонятно, сработало ли.
+    /// </remarks>
+    [RelayCommand]
+    private async Task CopyTextAsync(MessageViewModel? message)
+    {
+        if (message is null)
+            return;
+
+        try
+        {
+            await Clipboard.Default.SetTextAsync(message.Text);
+            Status = "скопировал в буфер обмена";
+        }
+        catch (Exception e)
+        {
+            Status = $"не удалось скопировать: {e.Message}";
+        }
+    }
+
     [RelayCommand]
     private void GoBack() => SelectedPeer = null;
 
