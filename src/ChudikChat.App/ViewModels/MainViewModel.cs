@@ -106,6 +106,7 @@ public partial class MainViewModel : ObservableObject
         peer.DisplayName = snapshot.DisplayName;
         peer.Address = snapshot.PrimaryEndpoint?.ToString() ?? string.Empty;
         peer.IsOnline = true;
+        peer.Platform = snapshot.Platform;
         peer.ApplyAvatar(snapshot.Avatar);
 
         if (isNew && Peers.Count == 1)

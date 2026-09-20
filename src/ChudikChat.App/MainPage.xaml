@@ -137,7 +137,14 @@
 
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="vm:PeerViewModel">
-                            <Grid Padding="12,10" ColumnDefinitions="36,*,Auto" ColumnSpacing="10">
+                            <!--
+                                Отступы заданы полями содержимого, а не ColumnSpacing:
+                                промежуток между колонками MAUI добавляет независимо от их
+                                ширины, и у собеседника без известной платформы схлопнутая
+                                в ноль колонка всё равно съедала бы лишние десять точек.
+                                Поле принадлежит элементу и исчезает вместе с ним.
+                            -->
+                            <Grid Padding="12,10" ColumnDefinitions="36,Auto,*,Auto">
                                 <Grid Grid.Column="0" HeightRequest="36" WidthRequest="36">
 
                                     <!--
@@ -182,7 +189,61 @@
                                     </Image>
                                 </Grid>
 
-                                <VerticalStackLayout Grid.Column="1" Spacing="1" VerticalOptions="Center">
+                                <!--
+                                    Операционная система собеседника: три фигуры внахлёст
+                                    в одной клетке, видна ровно одна. Контейнера вокруг них
+                                    нет намеренно — его ширина не дала бы колонке Auto
+                                    схлопнуться там, где платформа неизвестна: у старой
+                                    сборки, у Linux, у всего, чего мы ещё не знаем.
+
+                                    Aspect="None", и координаты записаны сразу в тех
+                                    шестнадцати точках, в которых фигура и рисуется.
+                                    Uniform ужал бы каждую фигуру по её собственной рамке,
+                                    и квадраты Windows, заполняющие рамку целиком, вышли бы
+                                    заметно тяжелее узкого яблока. Здесь же размеры подобраны
+                                    на глаз и одинаковы по весу.
+
+                                    Дырки — правилом ненулевой обмотки (F1): глаза робота
+                                    обходятся в обратную сторону и потому вычитаются.
+                                -->
+                                <Path
+                                    Grid.Column="1"
+                                    HeightRequest="16"
+                                    WidthRequest="16"
+                                    Margin="10,0,0,0"
+                                    VerticalOptions="Center"
+                                    Aspect="None"
+                                    IsVisible="{Binding IsWindows}"
+                                    Fill="{AppThemeBinding Light=#0078D4, Dark=#4CC2FF}"
+                                    Data="F1 M1.5,1.5 H7.6 V7.6 H1.5 Z M8.4,1.5 H14.5 V7.6 H8.4 Z M1.5,8.4 H7.6 V14.5 H1.5 Z M8.4,8.4 H14.5 V14.5 H8.4 Z" />
+
+                                <Path
+                                    Grid.Column="1"
+                                    HeightRequest="16"
+                                    WidthRequest="16"
+                                    Margin="10,0,0,0"
+                                    VerticalOptions="Center"
+                                    Aspect="None"
+                                    IsVisible="{Binding IsMacOs}"
+                                    Fill="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}"
+                                    Data="F1 M8.13,4.8 C7.47,4.13 6.73,3.8 5.8,3.8 C3.6,3.8 1.8,5.67 1.8,8.4 C1.8,11.27 3.8,15 5.8,15 C6.67,15 7.07,14.4 8.07,14.4 C9.07,14.4 9.4,15 10.33,15 C12.33,15 14.2,11.67 14.2,9.6 A1.867,1.867 0 0 1 14.2,6 C14,4.67 12.4,3.8 10.33,3.8 C9.4,3.8 8.73,4.13 8.13,4.8 Z M8.47,4.53 C10.33,4.27 11.47,2.67 11.27,1 C9.67,1.27 8.47,2.8 8.47,4.53 Z" />
+
+                                <Path
+                                    Grid.Column="1"
+                                    HeightRequest="16"
+                                    WidthRequest="16"
+                                    Margin="10,0,0,0"
+                                    VerticalOptions="Center"
+                                    Aspect="None"
+                                    IsVisible="{Binding IsAndroid}"
+                                    Fill="#3DDC84"
+                                    Data="F1 M0.75,13.3 A7.25,7.25 0 0 1 15.25,13.3 Z M2.49,3.35 L3.58,2.7 L6.12,7.05 L5.03,7.7 Z M13.51,3.35 L10.97,7.7 L9.89,7.05 L12.42,2.7 Z M4.01,8.94 A1.09,1.09 0 1 0 6.19,8.94 A1.09,1.09 0 1 0 4.01,8.94 Z M9.81,8.94 A1.09,1.09 0 1 0 11.99,8.94 A1.09,1.09 0 1 0 9.81,8.94 Z" />
+
+                                <VerticalStackLayout
+                                    Grid.Column="2"
+                                    Margin="10,0,0,0"
+                                    Spacing="1"
+                                    VerticalOptions="Center">
                                     <Label
                                         FontSize="14"
                                         LineBreakMode="TailTruncation"
@@ -196,7 +257,8 @@
                                 </VerticalStackLayout>
 
                                 <Border
-                                    Grid.Column="2"
+                                    Grid.Column="3"
+                                    Margin="10,0,0,0"
                                     Padding="7,2"
                                     StrokeThickness="0"
                                     VerticalOptions="Center"

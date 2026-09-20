@@ -43,12 +43,34 @@ public sealed record DiscoveryDatagram
     /// сообщения: сама картинка сюда не влезла бы, приём идёт в буфер 8 КБ.
     /// </summary>
     public string? AvatarTag { get; init; }
+
+    /// <summary>
+    /// Операционная система: "windows", "macos" или "android". Около двадцати байт.
+    /// null — сборка старая или платформа нам незнакома.
+    /// </summary>
+    /// <remarks>
+    /// Строка, а не перечисление, и это важнее, чем кажется. Перечисление уехало бы
+    /// строкой — <see cref="DiscoveryJsonContext"/> собран с UseStringEnumConverter, —
+    /// но незнакомое значение оно разворачивает в исключение, а исключение здесь гасится
+    /// молча и отбрасывает датаграмму целиком. Пир на платформе, о которой эта сборка
+    /// не знает, пропал бы из списка вовсе — не иконка, а сам пир.
+    /// </remarks>
+    public string? Platform { get; init; }
 }
 
 /// <summary>Кто мы для сети прямо сейчас.</summary>
-public sealed record LocalBeacon(PeerId Peer, string DisplayName, int ListenPort, string? AvatarTag = null);
+public sealed record LocalBeacon(
+    PeerId Peer,
+    string DisplayName,
+    int ListenPort,
+    string? AvatarTag = null,
+    PeerPlatform Platform = PeerPlatform.Unknown);
 
 /// <summary>Замеченный пир. Адрес — из заголовка датаграммы.</summary>
+/// <param name="Platform">
+/// Название платформы как оно пришло. Разбирается один раз, в таблице пиров движка:
+/// источников у события «видели пира» четыре, и разбирай его каждый — один бы забыл.
+/// </param>
 public sealed record DiscoveryObservation(
     PeerId Peer,
     string DisplayName,
@@ -56,7 +78,8 @@ public sealed record DiscoveryObservation(
     int ListenPort,
     int InterfaceIndex,
     bool IsFarewell,
-    string? AvatarTag = null);
+    string? AvatarTag = null,
+    string? Platform = null);
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,

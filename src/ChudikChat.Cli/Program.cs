@@ -13,21 +13,32 @@ if (args.Length > 0)
     engine.LocalDisplayName = args[0];
 
 var names = new Dictionary<PeerId, string>();
+
+// Платформа собеседника. В стенде она не украшение: два экземпляра консоли
+// проверяют всю проводку — от своего OperatingSystem до чужого списка, —
+// не собирая приложение ни под одну платформу.
+var platforms = new Dictionary<PeerId, PeerPlatform>();
 PeerId? lastPeer = null;
 
 engine.PeerAppeared += peer =>
 {
     names[peer.Id] = peer.DisplayName;
+    platforms[peer.Id] = peer.Platform;
     lastPeer ??= peer.Id;
-    Write(ConsoleColor.Green, $"+ {peer.DisplayName} [{peer.Id.Short}] {peer.PrimaryEndpoint}");
+    Write(ConsoleColor.Green, $"+ {peer.DisplayName} [{peer.Id.Short}] {peer.PrimaryEndpoint}{Platform(peer.Platform)}");
 };
 
-engine.PeerUpdated += peer => names[peer.Id] = peer.DisplayName;
+engine.PeerUpdated += peer =>
+{
+    names[peer.Id] = peer.DisplayName;
+    platforms[peer.Id] = peer.Platform;
+};
 
 engine.PeerGone += id =>
 {
     Write(ConsoleColor.DarkGray, $"- {Name(id)} [{id.Short}] ушёл");
     names.Remove(id);
+    platforms.Remove(id);
 };
 
 engine.MessageReceived += message =>
@@ -180,8 +191,15 @@ void ListPeers()
     }
 
     foreach (var id in peers)
-        Console.WriteLine($"  {Name(id)} [{id.Short}]");
+    {
+        var platform = platforms.TryGetValue(id, out var known) ? known : PeerPlatform.Unknown;
+        Console.WriteLine($"  {Name(id)} [{id.Short}]{Platform(platform)}");
+    }
 }
+
+/// <summary>Платформа в скобках. У неизвестной — пусто, а не слово «неизвестно».</summary>
+static string Platform(PeerPlatform platform) =>
+    PeerPlatforms.Wire(platform) is { } wire ? $" ({wire})" : string.Empty;
 
 void Rename(string name)
 {

@@ -38,6 +38,13 @@ public sealed class PeerInfo
     /// <summary>Отпечаток картинки, которую пир объявил. Сами байты лежат в кэше движка.</summary>
     public string? AvatarTag { get; private set; }
 
+    /// <summary>
+    /// Операционная система пира. Обычное свойство, а не метод, как у отпечатка:
+    /// смена отпечатка тянет за собой поход за новой картинкой, а смена платформы —
+    /// ничего, кроме другой иконки в списке.
+    /// </summary>
+    public PeerPlatform Platform { get; set; } = PeerPlatform.Unknown;
+
     public List<PeerEndpoint> Endpoints { get; } = [];
 
     public DateTimeOffset LastSeenUtc { get; set; }
@@ -78,7 +85,7 @@ public sealed class PeerInfo
     public PeerSnapshot ToSnapshot(AvatarImage? avatar = null)
     {
         var best = Endpoints.Count == 0 ? null : Endpoints[0].ToIPEndPoint();
-        return new PeerSnapshot(Id, DisplayName, best, Endpoints.Count, LastSeenUtc, avatar);
+        return new PeerSnapshot(Id, DisplayName, best, Endpoints.Count, LastSeenUtc, avatar, Platform);
     }
 }
 
@@ -94,4 +101,5 @@ public sealed record PeerSnapshot(
     IPEndPoint? PrimaryEndpoint,
     int EndpointCount,
     DateTimeOffset LastSeenUtc,
-    AvatarImage? Avatar = null);
+    AvatarImage? Avatar = null,
+    PeerPlatform Platform = PeerPlatform.Unknown);

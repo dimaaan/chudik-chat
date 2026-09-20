@@ -31,6 +31,20 @@ public partial class PeerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasAvatar))]
     public partial ImageSource? Avatar { get; set; }
 
+    /// <summary>
+    /// Операционная система собеседника. Unknown — иконки в строке нет.
+    /// </summary>
+    /// <remarks>
+    /// Возни с отпечатком, как у картинки, здесь не требуется: генератор сравнивает
+    /// новое значение со старым, и присвоение того же самого уведомления не поднимает.
+    /// А приходит оно часто — объявления идут каждые четыре секунды.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWindows))]
+    [NotifyPropertyChangedFor(nameof(IsMacOs))]
+    [NotifyPropertyChangedFor(nameof(IsAndroid))]
+    public partial PeerPlatform Platform { get; set; } = PeerPlatform.Unknown;
+
     public required PeerId Id { get; init; }
 
     public ObservableCollection<MessageViewModel> Messages { get; } = [];
@@ -40,6 +54,14 @@ public partial class PeerViewModel : ObservableObject
     public bool HasUnread => UnreadCount > 0;
 
     public bool HasAvatar => Avatar is not null;
+
+    // Три отдельных признака, а не один преобразователь: в шаблоне строки лежат
+    // три фигуры внахлёст, и каждой нужна своя привязка к видимости.
+    public bool IsWindows => Platform == PeerPlatform.Windows;
+
+    public bool IsMacOs => Platform == PeerPlatform.MacOs;
+
+    public bool IsAndroid => Platform == PeerPlatform.Android;
 
     /// <summary>
     /// Отпечаток показываемой сейчас картинки. Не наблюдаемое: на экране его нет,

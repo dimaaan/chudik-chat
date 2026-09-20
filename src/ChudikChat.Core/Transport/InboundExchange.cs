@@ -72,7 +72,8 @@ public static class InboundExchange
             displayName,
             remote,
             identify.ListenPort,
-            Avatars.SanitizeTag(identify.AvatarTag));
+            Avatars.SanitizeTag(identify.AvatarTag),
+            identify.Platform);
 
         // Отвечаем своим представлением: так звонящий узнаёт, кто ему ответил,
         // даже если соединение начато вручную по IP и discovery не участвовал.

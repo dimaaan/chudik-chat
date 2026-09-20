@@ -77,7 +77,7 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
     public ChatEngine()
     {
         _discovery = new UdpDiscoveryService(
-            () => new LocalBeacon(LocalId, _displayName, _listener.Port, _avatar?.Tag),
+            () => new LocalBeacon(LocalId, _displayName, _listener.Port, _avatar?.Tag, PeerPlatforms.Local),
             OnObserved,
             message => Publish(new DiagnosticEvent(message)));
     }
@@ -244,7 +244,8 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
                         remote.ListenPort,
                         0,
                         true,
-                        Avatars.SanitizeTag(remote.AvatarTag)));
+                        Avatars.SanitizeTag(remote.AvatarTag),
+                        remote.Platform));
                     await FlushAsync(ct).ConfigureAwait(false);
                     return message with { State = MessageState.Delivered };
                 }
@@ -286,7 +287,8 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
                 remote.ListenPort,
                 0,
                 true,
-                Avatars.SanitizeTag(remote.AvatarTag)));
+                Avatars.SanitizeTag(remote.AvatarTag),
+                remote.Platform));
             await FlushAsync(ct).ConfigureAwait(false);
             return message with { Peer = remote.PeerId, State = MessageState.Delivered };
         }
@@ -669,8 +671,9 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         string displayName,
         IPEndPoint remote,
         int listenPort,
-        string? avatarTag)
-        => Publish(new PeerSeenEvent(peer, displayName, remote.Address, listenPort, 0, false, avatarTag));
+        string? avatarTag,
+        string? platform)
+        => Publish(new PeerSeenEvent(peer, displayName, remote.Address, listenPort, 0, false, avatarTag, platform));
 
     void IExchangeSink.OnText(PeerId peer, Guid messageId, DateTimeOffset sentAt, string text)
         => Publish(new TextReceivedEvent(peer, messageId, sentAt, text));
@@ -699,7 +702,8 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
             observation.ListenPort,
             observation.InterfaceIndex,
             ConnectSucceeded: false,
-            observation.AvatarTag));
+            observation.AvatarTag,
+            observation.Platform));
     }
 
     private async Task RunExpiryAsync(CancellationToken ct)
@@ -725,6 +729,7 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         DisplayName = _displayName,
         ListenPort = _listener.Port,
         AvatarTag = avatar?.Tag,
+        Platform = PeerPlatforms.Wire(PeerPlatforms.Local),
     };
 
     private void Publish(EngineEvent e) => _events.Writer.TryWrite(e);
@@ -816,6 +821,7 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         peer.DisplayName = DeviceNames.Sanitize(seen.DisplayName);
         peer.LastSeenUtc = now;
         peer.SetAvatarTag(seen.AvatarTag);
+        peer.Platform = PeerPlatforms.Parse(seen.Platform);
 
         var endpoint = peer.TouchEndpoint(seen.Address, seen.ListenPort, seen.InterfaceIndex, now);
         if (seen.ConnectSucceeded)
@@ -1185,7 +1191,8 @@ internal sealed record PeerSeenEvent(
     int ListenPort,
     int InterfaceIndex,
     bool ConnectSucceeded,
-    string? AvatarTag = null) : EngineEvent;
+    string? AvatarTag = null,
+    string? Platform = null) : EngineEvent;
 
 internal sealed record TextReceivedEvent(
     PeerId Peer,

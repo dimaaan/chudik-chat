@@ -150,6 +150,57 @@ public class ChatEngineTests
         Assert.Equal(shown, (await appeared.WaitAsync(Patience)).DisplayName);
     }
 
+    /// <summary>
+    /// Платформа едет и вторым каналом — в представлении, а не только в объявлении.
+    /// </summary>
+    /// <remarks>
+    /// Обнаружение здесь не участвует вовсе: Алиса знает один адрес, и это путь
+    /// «добавить пира по IP». Проверяются обе стороны разом — та, что представилась
+    /// первой, и та, что ответила своим представлением. Забудь мы платформу в ответном
+    /// представлении, иконка гасла бы на каждой отправке сообщения и возвращалась
+    /// только со следующим объявлением, через четыре секунды.
+    /// </remarks>
+    [Fact]
+    public async Task A_platform_travels_in_both_identities()
+    {
+        await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
+        await using var bob = new ChatEngine { LocalDisplayName = "Боб" };
+
+        var bobSawAlice = NextPeer(bob);
+        var aliceSawBob = NextPeer(alice);
+
+        await alice.StartAsync();
+        await bob.StartAsync();
+
+        var sent = await alice.SendTextToAsync(Loopback(bob.ListenPort), "привет, Боб");
+        Assert.Equal(MessageState.Delivered, sent.State);
+
+        // Обе машины здесь одна и та же, поэтому обе стороны обязаны увидеть её же.
+        Assert.Equal(PeerPlatforms.Local, (await bobSawAlice.WaitAsync(Patience)).Platform);
+        Assert.Equal(PeerPlatforms.Local, (await aliceSawBob.WaitAsync(Patience)).Platform);
+    }
+
+    /// <summary>
+    /// Собеседник старой сборки: поля платформы в его представлении нет.
+    /// В списке он обязан остаться — без иконки, но остаться.
+    /// </summary>
+    [Fact]
+    public async Task A_peer_without_a_platform_is_still_seen()
+    {
+        await using var liar = new NastyPeer("Старьё");
+        await using var alice = new ChatEngine { LocalDisplayName = "Алиса" };
+
+        var appeared = NextPeer(alice);
+        await alice.StartAsync();
+
+        var message = await alice.SendTextToAsync(Loopback(liar.Port), "привет");
+        Assert.Equal(MessageState.Delivered, message.State);
+
+        var seen = await appeared.WaitAsync(Patience);
+        Assert.Equal("Старьё", seen.DisplayName);
+        Assert.Equal(PeerPlatform.Unknown, seen.Platform);
+    }
+
     private static IPEndPoint Loopback(int port) => new(IPAddress.Loopback, port);
 
     private static Task<ChatMessage> NextMessage(ChatEngine engine)

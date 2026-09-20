@@ -191,6 +191,36 @@ public class FrameCodecTests
             $$"""{"t":"id","version":1,"peerId":"{{Guid.NewGuid():N}}","displayName":"Даша","listenPort":51234}"""));
 
         Assert.Null(received.AvatarTag);
+        Assert.Null(received.Platform);
+    }
+
+    /// <summary>
+    /// Представление с платформой, о которой эта сборка не знает. Кадр обязан
+    /// разбираться, а не рвать соединение: иначе собеседник на новой платформе
+    /// лишился бы не иконки, а переписки.
+    /// </summary>
+    [Fact]
+    public async Task Identify_with_an_unknown_platform_parses()
+    {
+        var received = Assert.IsType<IdentifyFrame>(await ReadHandwrittenAsync(
+            $$"""
+            {"t":"id","version":1,"peerId":"{{Guid.NewGuid():N}}","displayName":"Даша",
+             "listenPort":51234,"platform":"freebsd"}
+            """));
+
+        Assert.Equal(PeerPlatform.Unknown, PeerPlatforms.Parse(received.Platform));
+    }
+
+    [Fact]
+    public async Task Identify_carries_a_known_platform()
+    {
+        var received = Assert.IsType<IdentifyFrame>(await ReadHandwrittenAsync(
+            $$"""
+            {"t":"id","version":1,"peerId":"{{Guid.NewGuid():N}}","displayName":"Даша",
+             "listenPort":51234,"platform":"android"}
+            """));
+
+        Assert.Equal(PeerPlatform.Android, PeerPlatforms.Parse(received.Platform));
     }
 
     /// <summary>

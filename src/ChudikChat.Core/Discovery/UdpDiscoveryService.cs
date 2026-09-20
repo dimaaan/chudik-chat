@@ -434,7 +434,8 @@ public sealed class UdpDiscoveryService : IDisposable
             datagram.ListenPort,
             interfaceIndex,
             datagram.Kind == DiscoveryKind.Bye,
-            Avatars.SanitizeTag(datagram.AvatarTag)));
+            Avatars.SanitizeTag(datagram.AvatarTag),
+            datagram.Platform));
 
         if (datagram.Kind == DiscoveryKind.Hello)
             _ = ReplyAsync(source, ct);
@@ -480,6 +481,7 @@ public sealed class UdpDiscoveryService : IDisposable
             DisplayName = me.DisplayName,
             ListenPort = me.ListenPort,
             AvatarTag = me.AvatarTag,
+            Platform = PeerPlatforms.Wire(me.Platform),
         };
 
         return JsonSerializer.SerializeToUtf8Bytes(datagram, typeof(DiscoveryDatagram), DiscoveryJsonContext.Default);
