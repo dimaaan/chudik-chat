@@ -97,6 +97,24 @@
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#2F6FEB" />
 		<MauiSplashScreen Include="Resources\Splash\splash.svg" Color="#2F6FEB" BaseSize="128,128" />
 
+		<!--
+			Тот же файл, что служит передним планом иконки, объявлен ещё и картинкой:
+			экрану «О программе» нужно нарисовать иконку у себя, а MauiIcon из разметки
+			не адресуется — Source= видит только элементы MauiImage. Третья копия того
+			же пути (вторая уже лежит в splash.svg) была бы хуже: разъезжается молча.
+
+			Имена на выходе не сталкиваются — appicon* у иконки против appiconfg здесь,
+			и appiconfg годится в ресурсы Android: строчные буквы, без дефисов. В
+			разметке расширение всегда .png, даже когда исходник SVG.
+
+			BaseSize — размер в точках при однократном увеличении, и он равен тому,
+			каким картинку рисуют на экране. Холст исходника 456×456, и с ним
+			ресайзер выдал бы 456, 912 и 1368 пикселей на квадрат в 96 точек:
+			сотни лишних килобайт в каждую сборку ради разрешения, которого
+			никто не увидит.
+		-->
+		<MauiImage Include="Resources\AppIcon\appiconfg.svg" BaseSize="96,96" />
+
 		<MauiImage Include="Resources\Images\*" />
 		<MauiFont Include="Resources\Fonts\*" />
 		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />

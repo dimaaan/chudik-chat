@@ -142,7 +142,9 @@ public partial class MainPage : ContentPage
         //
         // Кнопки уходят вместе со списком. «Обновить» опрашивает сеть ради него же,
         // а «Имя» переименовывает себя — и рядом с чужим именем читается ровно
-        // наоборот. Обе возвращаются кнопкой «‹ Список».
+        // наоборот. «?» про приложение, то есть тоже про эту сторону, и вдобавок
+        // в узкой шапке рядом с чужим именем и адресом ему просто нет места.
+        // Все три возвращаются кнопкой «‹ Список».
         var aboutPeer = !_isWide && hasPeer;
 
         MyIdentity.IsVisible = !aboutPeer;
@@ -150,6 +152,7 @@ public partial class MainPage : ContentPage
         BackButton.IsVisible = aboutPeer;
         RenameButton.IsVisible = !aboutPeer;
         RefreshButton.IsVisible = !aboutPeer;
+        AboutAppButton.IsVisible = !aboutPeer;
     }
 
     private void WatchMessages()

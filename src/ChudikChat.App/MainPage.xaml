@@ -9,18 +9,10 @@
     x:DataType="vm:MainViewModel"
     Shell.NavBarIsVisible="False">
 
+    <!--  Accent и ToolButton переехали в App: они нужны и экрану «О программе».  -->
     <ContentPage.Resources>
-        <Color x:Key="Accent">#2F6FEB</Color>
         <toolkit:InvertedBoolConverter x:Key="Not" />
         <conv:MessageTextConverter x:Key="MessageText" />
-
-        <Style x:Key="ToolButton" TargetType="Button">
-            <Setter Property="BackgroundColor" Value="Transparent" />
-            <Setter Property="TextColor" Value="{AppThemeBinding Light=#2F6FEB, Dark=#8AB4FF}" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="MinimumWidthRequest" Value="0" />
-        </Style>
     </ContentPage.Resources>
 
     <!--
@@ -49,7 +41,7 @@
         -->
         <Grid
             Grid.Row="0"
-            ColumnDefinitions="Auto,*,Auto,Auto"
+            ColumnDefinitions="Auto,*,Auto,Auto,Auto"
             Padding="12,10"
             ColumnSpacing="6"
             BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
@@ -92,10 +84,18 @@
                 </Image>
 
                 <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <!--
+                        Усечение хвостом, как у строки состояния под ним и как
+                        у имени собеседника в соседнем блоке. По умолчанию MAUI
+                        переносит по словам, и длинное имя машины разрывало бы
+                        шапку на две строки. С появлением «?» колонка стала уже,
+                        и до этого теперь рукой подать на телефоне.
+                    -->
                     <Label
                         FontSize="15"
                         FontAttributes="Bold"
                         Text="{Binding MyName}"
+                        LineBreakMode="TailTruncation"
                         TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
                     <Label
                         FontSize="11"
@@ -206,6 +206,25 @@
                 Style="{StaticResource ToolButton}"
                 Text="Обновить"
                 Command="{Binding RefreshCommand}" />
+
+            <!--
+                Знак вопроса, а не слова «О программе»: рядом уже стоят «Имя»
+                и «Обновить», и третья словесная кнопка на телефоне в 360 точек
+                вытеснила бы обе. Цена — знак ни о чём не говорит, пока на него
+                не нажали, и подпись для чтения с экрана приходится задавать
+                отдельно: прочитать сам знак нечем.
+
+                Имя AboutAppButton, а не AboutButton: в ApplyLayout уже есть
+                aboutPeer, и она про совсем другое «о».
+            -->
+            <Button
+                x:Name="AboutAppButton"
+                Grid.Column="4"
+                Style="{StaticResource ToolButton}"
+                FontSize="16"
+                Text="?"
+                SemanticProperties.Description="О программе"
+                Command="{Binding ShowAboutCommand}" />
         </Grid>
 
         <Grid Grid.Row="1">

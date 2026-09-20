@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    Шапку рисует Shell, а не страница: на главной её нет вовсе
+    (Shell.NavBarIsVisible="False" в MainPage), и здесь она нужна ровно ради
+    стрелки возврата — своей кнопки «назад» тогда писать не приходится.
+
+    Цвета шапки заданы тут же. Стилевой блок Shell в Resources/Styles/Styles.xaml —
+    нетронутый шаблон MAUI, он красит её в белый и чёрный, а шапка Чудика серее
+    страницы. Без этого переход со списка на «О программе» менял бы цвет полосы.
+-->
+<ContentPage
+    x:Class="ChudikChat.App.AboutPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Title="О программе"
+    BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1B1D21}"
+    Shell.BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}"
+    Shell.ForegroundColor="{AppThemeBinding Light=#2F6FEB, Dark=#8AB4FF}"
+    Shell.TitleColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}">
+
+    <!--  Прокрутка ради телефона, положенного набок: там всё это в высоту не влезает.  -->
+    <ScrollView>
+        <VerticalStackLayout
+            Padding="24,40"
+            Spacing="6"
+            HorizontalOptions="Center">
+
+            <!--
+                Иконка нарисована без фона: в appiconfg.svg только белый пузырёк,
+                а синий квадрат и скругление углов каждая система добавляет сама.
+                Здесь их добавляет Border — так на экране получается ровно то,
+                что человек видит у себя на столе, и вторая копия рисунка ради
+                этого не заводится.
+            -->
+            <Border
+                WidthRequest="96"
+                HeightRequest="96"
+                StrokeThickness="0"
+                StrokeShape="RoundRectangle 22"
+                BackgroundColor="{StaticResource Accent}"
+                HorizontalOptions="Center">
+                <Image
+                    Source="appiconfg.png"
+                    WidthRequest="96"
+                    HeightRequest="96" />
+            </Border>
+
+            <Label
+                Margin="0,16,0,0"
+                Text="Чудик"
+                FontSize="28"
+                FontAttributes="Bold"
+                HorizontalTextAlignment="Center"
+                TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+
+            <Label
+                Text="Чат в локальной сети. Без сервера и без учётных записей."
+                FontSize="14"
+                LineBreakMode="WordWrap"
+                HorizontalTextAlignment="Center"
+                MaximumWidthRequest="320"
+                TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+
+            <!--  Обе строки заполняются в коде: до запуска версии ещё нет.  -->
+            <Label
+                x:Name="VersionLabel"
+                Margin="0,20,0,0"
+                FontSize="14"
+                HorizontalTextAlignment="Center"
+                TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+
+            <Label
+                x:Name="BuildLabel"
+                FontSize="13"
+                HorizontalTextAlignment="Center"
+                TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
+
+            <Label
+                Margin="0,20,0,0"
+                Text="Аншилевич Дмитрий"
+                FontSize="14"
+                HorizontalTextAlignment="Center"
+                TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+
+            <Label
+                Margin="0,24,0,0"
+                Text="Новые версии"
+                FontSize="13"
+                HorizontalTextAlignment="Center"
+                TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+
+            <!--
+                Текстом кнопки стоит сам адрес, а не «Открыть страницу». Во-первых,
+                ровно так ссылка выглядит в переписке — нажимаемым текстом и является
+                адрес. Во-вторых, открывать её может быть нечем: тогда адрес остаётся
+                на экране, чтобы набрать руками.
+            -->
+            <Button
+                Style="{StaticResource ToolButton}"
+                Text="github.com/dimaaan/chudik-chat/releases"
+                HorizontalOptions="Center"
+                Clicked="OnReleasesClicked" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

@@ -29,6 +29,10 @@ public static class MauiProgram
 		builder.Services.AddSingleton<MainPage>();
 		builder.Services.AddTransient<AppShell>();
 
+		// Transient, в отличие от главной страницы: состояния у «О программе» нет,
+		// и держать её живой между показами незачем.
+		builder.Services.AddTransient<AboutPage>();
+
 #if DEBUG
 		builder.Logging.AddDebug();
 #endif

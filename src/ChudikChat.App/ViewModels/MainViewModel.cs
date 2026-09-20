@@ -469,6 +469,18 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void GoBack() => SelectedPeer = null;
 
+    /// <summary>
+    /// Открывает экран «О программе».
+    /// </summary>
+    /// <remarks>
+    /// Навигация здесь, а не в коде страницы, по той же причине, по которой здесь
+    /// же живут диалоги: все кнопки шапки привязаны командами, и одна кнопка
+    /// с обработчиком выбивалась бы из ряда. Возврат никто не пишет — его даёт
+    /// стек навигации Shell, и на Android это аппаратная «Назад».
+    /// </remarks>
+    [RelayCommand]
+    private static Task ShowAboutAsync() => Shell.Current.GoToAsync("about");
+
     partial void OnSelectedPeerChanged(PeerViewModel? value)
     {
         if (value is not null)

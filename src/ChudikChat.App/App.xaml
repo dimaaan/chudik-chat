@@ -9,6 +9,26 @@
                 <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
                 <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--
+                Палитра Чудика. Лежит здесь, а не на странице, с тех пор как страниц
+                стало две: копия цвета в двух местах разъезжается молча, и заметно это
+                становится, когда синий на одном экране перестаёт совпадать с синим
+                на другом. Тот же синий стоит в csproj у иконки и заставки — там его
+                задаёт система сборки, и оттуда его не взять.
+
+                Словари выше — нетронутый шаблон MAUI с чужой фиолетовой палитрой.
+                Чудик ей не пользуется; выпалывать её здесь не к месту.
+            -->
+            <Color x:Key="Accent">#2F6FEB</Color>
+
+            <Style x:Key="ToolButton" TargetType="Button">
+                <Setter Property="BackgroundColor" Value="Transparent" />
+                <Setter Property="TextColor" Value="{AppThemeBinding Light=#2F6FEB, Dark=#8AB4FF}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Padding" Value="10,6" />
+                <Setter Property="MinimumWidthRequest" Value="0" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
