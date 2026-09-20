@@ -36,10 +36,20 @@
         SafeAreaEdges="Default, Default, Default, All"
         BackgroundColor="{AppThemeBinding Light=#FFFFFF, Dark=#1B1D21}">
 
-        <!--  Шапка  -->
+        <!--
+            Шапка.
+
+            В средней колонке два блока внахлёст, и виден ровно один: «про себя»
+            и «про собеседника». Переключает их ApplyLayout — разбор там же, где
+            и вся остальная раскладка.
+
+            Блоки лежат в одной колонке, а не в двух своих: колонка эта звёздочная,
+            и вторая такая же делила бы с ней ширину пополам даже будучи пустой.
+            Приём тот же, что у трёх иконок систем в строке списка.
+        -->
         <Grid
             Grid.Row="0"
-            ColumnDefinitions="Auto,Auto,*,Auto,Auto"
+            ColumnDefinitions="Auto,*,Auto,Auto"
             Padding="12,10"
             ColumnSpacing="6"
             BackgroundColor="{AppThemeBinding Light=#F5F7FA, Dark=#23262B}">
@@ -52,50 +62,147 @@
                 IsVisible="False"
                 Command="{Binding GoBackCommand}" />
 
-            <!--
-                Своя картинка, если операционная система её отдала. Буквы здесь нет
-                намеренно: имя написано рядом целиком, и кружок с той же буквой — лишнее.
-                Скрытый элемент схлопывает колонку Auto в ноль, поэтому там, где картинки
-                не бывает, шапка выглядит как раньше.
-            -->
-            <Image
+            <!--  Про себя: так шапка выглядит везде, кроме узкой раскладки с открытой перепиской  -->
+            <Grid
+                x:Name="MyIdentity"
                 Grid.Column="1"
-                HeightRequest="32"
-                WidthRequest="32"
-                Margin="0,0,8,0"
-                VerticalOptions="Center"
-                Aspect="AspectFill"
-                Source="{Binding MyAvatar}"
-                IsVisible="{Binding HasMyAvatar}">
-                <Image.Clip>
-                    <EllipseGeometry
-                        Center="16,16"
-                        RadiusX="16"
-                        RadiusY="16" />
-                </Image.Clip>
-            </Image>
+                ColumnDefinitions="Auto,*">
 
-            <VerticalStackLayout Grid.Column="2" Spacing="1">
-                <Label
-                    FontSize="15"
-                    FontAttributes="Bold"
-                    Text="{Binding MyName}"
-                    TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
-                <Label
-                    FontSize="11"
-                    Text="{Binding Status}"
-                    LineBreakMode="TailTruncation"
-                    TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
-            </VerticalStackLayout>
+                <!--
+                    Своя картинка, если операционная система её отдала. Буквы здесь нет
+                    намеренно: имя написано рядом целиком, и кружок с той же буквой — лишнее.
+                    Скрытый элемент схлопывает колонку Auto в ноль, поэтому там, где картинки
+                    не бывает, шапка выглядит как раньше.
+                -->
+                <Image
+                    Grid.Column="0"
+                    HeightRequest="32"
+                    WidthRequest="32"
+                    Margin="0,0,8,0"
+                    VerticalOptions="Center"
+                    Aspect="AspectFill"
+                    Source="{Binding MyAvatar}"
+                    IsVisible="{Binding HasMyAvatar}">
+                    <Image.Clip>
+                        <EllipseGeometry
+                            Center="16,16"
+                            RadiusX="16"
+                            RadiusY="16" />
+                    </Image.Clip>
+                </Image>
+
+                <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <Label
+                        FontSize="15"
+                        FontAttributes="Bold"
+                        Text="{Binding MyName}"
+                        TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                    <Label
+                        FontSize="11"
+                        Text="{Binding Status}"
+                        LineBreakMode="TailTruncation"
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
+                </VerticalStackLayout>
+            </Grid>
+
+            <!--
+                Про собеседника. Скрыт в разметке — как и кнопка возврата: раскладка
+                решается после первого замера окна, и без этого блок успел бы мигнуть.
+
+                Кружок с буквой здесь, в отличие от своего аватара, нужен: у соседа
+                картинки может не быть вовсе, а пустое место на месте лица читалось бы
+                как «шапка не про кого». Числа те же, что у своего аватара: 36, как
+                в списке, подняли бы высоту шапки при переходе через порог ширины.
+            -->
+            <Grid
+                x:Name="PeerIdentity"
+                Grid.Column="1"
+                ColumnDefinitions="Auto,*"
+                IsVisible="False">
+
+                <Grid
+                    Grid.Column="0"
+                    HeightRequest="32"
+                    WidthRequest="32"
+                    Margin="0,0,8,0"
+                    VerticalOptions="Center">
+
+                    <Border
+                        HeightRequest="32"
+                        WidthRequest="32"
+                        StrokeThickness="0"
+                        BackgroundColor="{StaticResource Accent}"
+                        StrokeShape="RoundRectangle 16">
+                        <Label
+                            FontSize="15"
+                            FontAttributes="Bold"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center"
+                            Text="{Binding SelectedPeer.Initials}"
+                            TextColor="White"
+                            IsVisible="{Binding SelectedPeer.HasAvatar, Converter={StaticResource Not}}" />
+                    </Border>
+
+                    <!--  Обрезка на самой картинке, а не на Border, — по той же причине, что и в списке.  -->
+                    <Image
+                        HeightRequest="32"
+                        WidthRequest="32"
+                        Aspect="AspectFill"
+                        Source="{Binding SelectedPeer.Avatar}"
+                        IsVisible="{Binding SelectedPeer.HasAvatar}">
+                        <Image.Clip>
+                            <EllipseGeometry
+                                Center="16,16"
+                                RadiusX="16"
+                                RadiusY="16" />
+                        </Image.Clip>
+                    </Image>
+                </Grid>
+
+                <VerticalStackLayout Grid.Column="1" Spacing="1">
+                    <Label
+                        FontSize="15"
+                        FontAttributes="Bold"
+                        LineBreakMode="TailTruncation"
+                        Text="{Binding SelectedPeer.DisplayName}"
+                        TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                    <!--
+                        То же, что и во второй строке списка: адрес, пока собеседник
+                        в сети, и приговор, когда ушёл. Общая строка состояния сюда
+                        не помещается, и это осознанный размен: узнать, с кем говоришь,
+                        в этой раскладке больше неоткуда, а состояние вернётся вместе
+                        со списком.
+
+                        У ушедшего подпись поднимается до основного цвета текста —
+                        серый здесь несёт слова, а не цифры адреса.
+                    -->
+                    <Label
+                        FontSize="11"
+                        LineBreakMode="TailTruncation"
+                        Text="{Binding SelectedPeer.StatusText}"
+                        TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}">
+                        <Label.Triggers>
+                            <DataTrigger
+                                TargetType="Label"
+                                Binding="{Binding SelectedPeer.IsOnline}"
+                                Value="False">
+                                <Setter Property="TextColor" Value="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
+                            </DataTrigger>
+                        </Label.Triggers>
+                    </Label>
+                </VerticalStackLayout>
+            </Grid>
 
             <Button
-                Grid.Column="3"
+                x:Name="RenameButton"
+                Grid.Column="2"
                 Style="{StaticResource ToolButton}"
                 Text="Имя"
                 Command="{Binding RenameCommand}" />
 
             <Button
-                Grid.Column="4"
+                x:Name="RefreshButton"
+                Grid.Column="3"
                 Style="{StaticResource ToolButton}"
                 Text="Обновить"
                 Command="{Binding RefreshCommand}" />

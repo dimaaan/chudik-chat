@@ -136,7 +136,20 @@ public partial class MainPage : ContentPage
             ChatPane.IsVisible = false;
         }
 
-        BackButton.IsVisible = !_isWide && hasPeer;
+        // Узкая раскладка с открытой перепиской — единственное состояние, где список
+        // остался за кадром. Своё имя в шапке читается там как переписка с самим
+        // собой, а имя собеседника взять больше неоткуда: своей шапки у переписки нет.
+        //
+        // Кнопки уходят вместе со списком. «Обновить» опрашивает сеть ради него же,
+        // а «Имя» переименовывает себя — и рядом с чужим именем читается ровно
+        // наоборот. Обе возвращаются кнопкой «‹ Список».
+        var aboutPeer = !_isWide && hasPeer;
+
+        MyIdentity.IsVisible = !aboutPeer;
+        PeerIdentity.IsVisible = aboutPeer;
+        BackButton.IsVisible = aboutPeer;
+        RenameButton.IsVisible = !aboutPeer;
+        RefreshButton.IsVisible = !aboutPeer;
     }
 
     private void WatchMessages()
