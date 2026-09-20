@@ -14,12 +14,12 @@
 
 .EXAMPLE
     ./build/publish-windows.ps1
-    ./build/publish-windows.ps1 -Version 1.1.0
+    ./build/publish-windows.ps1 -Version 2.0.0
     ./build/publish-windows.ps1 -SkipPublish     # пересобрать только MSI
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '1.1.0',
+    [string]$Version = '2.0.0',
     [switch]$SkipPublish
 )
 

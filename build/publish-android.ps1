@@ -18,11 +18,11 @@
 
 .EXAMPLE
     ./build/publish-android.ps1
-    ./build/publish-android.ps1 -Version 1.0.42 -VersionCode 42
+    ./build/publish-android.ps1 -Version 2.0.42 -VersionCode 42
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '1.1.0',
+    [string]$Version = '2.0.0',
     [int]$VersionCode = 1,
     [string]$JavaHome
 )
