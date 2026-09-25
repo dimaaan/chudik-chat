@@ -587,11 +587,16 @@ public sealed class ChatEngine : IAsyncDisposable, IExchangeSink
         {
             Directory.CreateDirectory(PathSanitizer.ForFileSystem(root));
 
-            var pathRoot = Path.GetPathRoot(Path.GetFullPath(root));
-            if (string.IsNullOrEmpty(pathRoot))
+            // На Unix DriveInfo — это statfs от переданного имени, и отвечает он за ту
+            // файловую систему, где лежит путь. Корень там всегда «/», а на Android это
+            // системный раздел только для чтения: свободно ноль, и отказ получала любая
+            // передача. Поэтому корень берём только на Windows, где он и есть диск.
+            var full = Path.GetFullPath(root);
+            var drive = OperatingSystem.IsWindows() ? Path.GetPathRoot(full) : full;
+            if (string.IsNullOrEmpty(drive))
                 return null;
 
-            var free = new DriveInfo(pathRoot).AvailableFreeSpace;
+            var free = new DriveInfo(drive).AvailableFreeSpace;
             if (free < needed)
                 return $"не хватает места: нужно {Bytes(needed)}, свободно {Bytes(free)}";
         }

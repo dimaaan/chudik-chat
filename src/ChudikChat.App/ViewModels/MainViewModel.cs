@@ -244,9 +244,11 @@ public partial class MainViewModel : ObservableObject
             "Принять",
             "Отклонить").ConfigureAwait(false);
 
-        return accepted
-            ? TransferDecision.Accept(Engine.DownloadRoot)
-            : TransferDecision.Decline("получатель отказался");
+        if (!accepted)
+            return TransferDecision.Decline("получатель отказался");
+
+        var root = await PlatformEnvironment.EnsureWritableAsync(Engine.DownloadRoot).ConfigureAwait(false);
+        return TransferDecision.Accept(root);
     }
 
     // ─── Команды ─────────────────────────────────────────────────────────────
