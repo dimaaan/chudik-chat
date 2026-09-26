@@ -429,11 +429,11 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            await Launcher.Default.OpenAsync(new Uri($"file://{path}"));
+            await ReceivedLauncher.OpenAsync(path);
         }
         catch (Exception e)
         {
-            Status = $"не удалось открыть папку: {e.Message}";
+            Status = $"не удалось открыть принятое: {e.Message}";
         }
     }
 
