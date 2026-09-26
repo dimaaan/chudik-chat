@@ -61,19 +61,13 @@
                 MaximumWidthRequest="320"
                 TextColor="{AppThemeBinding Light=#6B7280, Dark=#9AA1AC}" />
 
-            <!--  Обе строки заполняются в коде: до запуска версии ещё нет.  -->
+            <!--  Заполняется в коде: до запуска версии ещё нет.  -->
             <Label
                 x:Name="VersionLabel"
                 Margin="0,20,0,0"
                 FontSize="14"
                 HorizontalTextAlignment="Center"
                 TextColor="{AppThemeBinding Light=#1B1D21, Dark=#F2F4F7}" />
-
-            <Label
-                x:Name="BuildLabel"
-                FontSize="13"
-                HorizontalTextAlignment="Center"
-                TextColor="{AppThemeBinding Light=#9AA1AC, Dark=#6B7280}" />
 
             <Label
                 Margin="0,20,0,0"
