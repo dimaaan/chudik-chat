@@ -11,6 +11,7 @@
         dotnet tool install --global wix
         wix eula accept wix7
         wix extension add -g WixToolset.Firewall.wixext
+        wix extension add -g WixToolset.Util.wixext
 
 .EXAMPLE
     ./build/publish-windows.ps1
@@ -87,6 +88,7 @@ if (Test-Path $msi) { Remove-Item $msi -Force }
 & $wix build (Join-Path $PSScriptRoot 'Chudik.wxs') `
     -arch x64 `
     -ext WixToolset.Firewall.wixext `
+    -ext WixToolset.Util.wixext `
     -d PublishDir="$publishDir" `
     -d IconPath="$icon" `
     -d ProductVersion="$Version" `

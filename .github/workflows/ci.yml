@@ -123,6 +123,7 @@ jobs:
           dotnet tool install --global wix
           wix eula accept wix7
           wix extension add -g WixToolset.Firewall.wixext
+          wix extension add -g WixToolset.Util.wixext
 
       - name: Сборка установщика
         run: ./build/publish-windows.ps1 -Version ${{ needs.version.outputs.version }}
@@ -284,7 +285,8 @@ jobs:
 
           Скачать ``Chudik-$v-x64.msi`` и запустить. Нужны права администратора:
           установщик заводит правила брандмауэра, без которых Windows молча режет
-          входящие соединения и пиры не находятся.
+          входящие соединения и пиры не находятся. Когда установка закончится,
+          Чудик запустится сам.
 
           Пакет не подписан, поэтому Windows покажет «Windows защитила ваш
           компьютер»: «Подробнее» → «Выполнить в любом случае».

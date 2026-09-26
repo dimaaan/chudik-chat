@@ -106,5 +106,44 @@
                             Profile="all" />
     </Component>
 
+    <!--
+      Запуск сразу после установки — в InstallUISequence, а не в InstallExecuteSequence.
+
+      Execute-последовательность выполняет служба установщика с правами
+      администратора, и запущенный оттуда Чудик работал бы от администратора:
+      перетаскивание файлов из проводника, который работает без повышения, до такого
+      окна не доходит вовсе. UI-последовательность выполняет клиентский msiexec —
+      от имени того, кто запустил MSI, без повышения.
+
+      NOT Installed — первая установка и обновление поверх старой версии: у новой
+      версии свой ProductCode, и она ещё не стоит. Восстановление и удаление Чудика
+      не запускают. Тихая установка (/qn, /qb) UI-последовательность пропускает
+      целиком, и Чудик тоже не запускается — при развёртывании на много машин так
+      и нужно.
+
+      Запускает WixShellExec из WiX Util, а не собственное EXE-действие. Синхронное
+      EXE-действие держало бы окно установки, пока Чудик не завершится, а
+      асинхронное (asyncNoWait, asyncWait) после ExecuteAction не запускает ничего:
+      действие кончается с кодом 1631, и процесса нет. WixShellExec синхронен
+      для установщика, но процесс запускает через ShellExecute и сразу возвращается.
+
+      Return="ignore": установка к этому моменту уже состоялась, и неудачный запуск
+      не должен выглядеть как проваленная установка.
+    -->
+    <SetProperty Id="WixShellExecTarget"
+                 Value="[INSTALLFOLDER]ChudikChat.App.exe"
+                 Before="LaunchChudik"
+                 Sequence="ui" />
+
+    <CustomAction Id="LaunchChudik"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
+                  DllEntry="WixShellExec"
+                  Impersonate="yes"
+                  Return="ignore" />
+
+    <InstallUISequence>
+      <Custom Action="LaunchChudik" After="ExecuteAction" Condition="NOT Installed" />
+    </InstallUISequence>
+
   </Package>
 </Wix>
