@@ -54,11 +54,18 @@
 	-->
 	<PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
 		<!--
-			Только arm64. Умолчание SDK — android-arm64;android-x64, но x86_64 нужен
-			единственно эмулятору, а в эмуляторе Чудик всё равно никого не находит:
-			многоадресная рассылка туда не доходит. Половина размера пакета впустую.
+			В выпуск идёт только arm64. Умолчание SDK — android-arm64;android-x64, но
+			x86_64 нужен единственно эмулятору, а в эмуляторе Чудик всё равно никого
+			не находит: многоадресная рассылка туда не доходит. Половина размера
+			пакета впустую.
+
+			В Debug x86_64 возвращён ради запуска в эмуляторе. Образ эмулятора x86_64,
+			arm64 он выполняет трансляцией, но Fast Deployment заливает сборки по
+			основному ABI устройства: под x86_64 их нет, в .__override__/arm64-v8a
+			ничего не приезжает, и приложение падает на старте с «No assemblies found».
 		-->
 		<RuntimeIdentifiers>android-arm64</RuntimeIdentifiers>
+		<RuntimeIdentifiers Condition="'$(Configuration)' == 'Debug'">android-arm64;android-x64</RuntimeIdentifiers>
 
 		<!--
 			Множественное число обязательно. В конфигурации Release умолчание —
