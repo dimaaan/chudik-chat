@@ -50,9 +50,22 @@ public static class TrayIcon
 
 #if WINDOWS
     private const string Tooltip = "Чудик";
-    private const string ClassName = "ChudikTrayWindow";
     private const uint IconId = 1;
     private const uint CallbackMessage = WmApp + 1;
+
+    // По классу окна выпускная сборка ищет свой первый экземпляр (SingleInstance).
+    // У отладочной класс свой: иначе второй запуск установленного Чудика мог бы
+    // найти запущенный из Visual Studio и показать не то окно.
+#if DEBUG
+    internal const string ClassName = "ChudikTrayWindow.Debug";
+#else
+    internal const string ClassName = "ChudikTrayWindow";
+#endif
+
+    /// <summary>
+    /// Просьба второго экземпляра показать окно. Ответ ненулевой, если окно показано.
+    /// </summary>
+    internal const uint ShowMessage = WmApp + 2;
     private const int CommandOpen = 1;
     private const int CommandQuit = 2;
 
@@ -178,6 +191,17 @@ public static class TrayIcon
                 }
 
                 return IntPtr.Zero;
+            }
+
+            // Уже завершаемся — отказываем: второй экземпляр дождётся нашего
+            // выхода и запустится сам, а не вернёт окно, которое сейчас закроется.
+            if (message == ShowMessage)
+            {
+                if (_quitting || _window is null)
+                    return IntPtr.Zero;
+
+                Open();
+                return 1;
             }
 
             // Проводник перезапустился: панель задач создана заново, и прежних

@@ -9,6 +9,10 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		// Второй запуск выпускной сборки на Windows показывает окно первого и выходит
+		// прямо здесь: раньше, чем откроет своё окно и выйдет в сеть.
+		SingleInstance.Enforce();
+
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
